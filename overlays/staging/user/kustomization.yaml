@@ -1,0 +1,27 @@
+# user staging. 이미지 태그는 SeatSAC build-push(3.1.4)가 커밋한다 — 사람이 직접 바꾸지 않는다(롤백은 revert PR)
+# 값 출처: CHANGE_ME_* = envs/staging terraform output (rds_endpoint · valkey_primary_endpoint · 3.1.8 큐 URL · 3.1.11 Cognito)
+# Secret 값은 여기 두지 않는다 (user-secrets·user-migrator-secrets는 Terraform)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cinema-staging
+resources:
+  - ../../../base/user
+images:
+  - name: cinema/user
+    newName: ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/cinema/user
+    newTag: CHANGE_ME
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"     # Flyway Job(-1)보다 먼저
+configMapGenerator:
+  - name: user-config
+    literals:
+      - SPRING_PROFILES_ACTIVE=staging
+      - AWS_REGION=ap-northeast-2
+      - SPRING_DATASOURCE_URL=jdbc:mysql://CHANGE_ME_RDS_ENDPOINT:3306/user_db?connectionTimeZone=UTC&sslMode=REQUIRED
+      - FLYWAY_URL=jdbc:mysql://CHANGE_ME_RDS_ENDPOINT:3306/user_db?useSsl=true&serverSslCert=/etc/rds-ca/rds-ca.pem&trustServerCertificate=false&disableSslHostnameVerification=false&sslMode=verify-full
+      - SPRING_DATASOURCE_USERNAME=user_app
+      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
+      - SPRING_FLYWAY_ENABLED=false
+      - APP_SERVICES_BOOKING_URL=http://booking:8080
+      - APP_SERVICES_CATALOG_URL=http://catalog:8080

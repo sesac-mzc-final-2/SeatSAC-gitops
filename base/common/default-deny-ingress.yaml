@@ -1,0 +1,10 @@
+# 앱 namespace 인바운드 기본 거부 (3.1.13). 허용은 base/{svc}/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    app.kubernetes.io/part-of: cinema
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]

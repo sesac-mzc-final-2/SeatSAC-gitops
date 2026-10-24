@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cinema-common
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: cinema
+  source:
+    repoURL: git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    targetRevision: main
+    path: base/common
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cinema-staging
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

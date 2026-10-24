@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-preview
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: cinema
+    cinema/service-role: preview
+spec:
+  selector: { app.kubernetes.io/name: gateway }   # Argo Rollouts가 rollouts-pod-template-hash를 덧붙인다
+  ports:
+    - { name: http, port: 8080, targetPort: http }

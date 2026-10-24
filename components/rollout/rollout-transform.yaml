@@ -1,0 +1,24 @@
+# kustomize는 Rollout(CRD)을 모른다 → configMapGenerator 해시 이름을 Rollout 안 참조에도 반영하게 알려 준다
+# (Argo Rollouts 문서의 rollout-transform.yaml 중 필요한 부분)
+nameReference:
+  - kind: ConfigMap
+    version: v1
+    fieldSpecs:
+      - { path: spec/template/spec/containers/envFrom/configMapRef/name, kind: Rollout }
+      - { path: spec/template/spec/containers/env/valueFrom/configMapKeyRef/name, kind: Rollout }
+      - { path: spec/template/spec/initContainers/envFrom/configMapRef/name, kind: Rollout }
+      - { path: spec/template/spec/volumes/configMap/name, kind: Rollout }
+  - kind: Secret
+    version: v1
+    fieldSpecs:
+      - { path: spec/template/spec/containers/envFrom/secretRef/name, kind: Rollout }
+      - { path: spec/template/spec/volumes/secret/secretName, kind: Rollout }
+  - kind: Service
+    version: v1
+    fieldSpecs:
+      - { path: spec/strategy/blueGreen/activeService, kind: Rollout }
+      - { path: spec/strategy/blueGreen/previewService, kind: Rollout }
+  - kind: AnalysisTemplate
+    group: argoproj.io
+    fieldSpecs:
+      - { path: spec/strategy/blueGreen/prePromotionAnalysis/templates/templateName, kind: Rollout }

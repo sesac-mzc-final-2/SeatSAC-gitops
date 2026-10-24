@@ -1,0 +1,25 @@
+# 차트 버전은 CHANGE_ME → helm search repo로 확인해 고정 (lbc_chart_version과 같은 방식)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: cinema
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-rollouts
+      targetRevision: CHANGE_ME
+      helm:
+        valueFiles: [$values/platform/argo-rollouts/values.yaml]
+    - repoURL: git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

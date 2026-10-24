@@ -1,0 +1,34 @@
+# booking 블루/그린 분석: 5xx ≤ 1% 그리고 결제 timeout·error ≤ 5% (declined 제외) — 1분 × 3회
+# ⚠️ gateway와 같은 트래픽 전제(3.1.6)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: booking-prepromotion
+spec:
+  args:
+    - name: preview-hash
+  metrics:
+    - name: http-5xx-ratio
+      interval: 1m
+      count: 3
+      failureLimit: 0
+      successCondition: result[0] <= 0.01
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          query: |
+            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",status=~"5.."}[1m])) or vector(0))
+            /
+            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}"}[1m])) > 0 or vector(1))
+    - name: payment-failure-ratio
+      interval: 1m
+      count: 3
+      failureLimit: 0
+      successCondition: result[0] <= 0.05
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          query: |
+            (sum(rate(booking_payment_call_total{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",result=~"timeout|error"}[1m])) or vector(0))
+            /
+            (sum(rate(booking_payment_call_total{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}"}[1m])) > 0 or vector(1))

@@ -1,0 +1,83 @@
+# payment DB 마이그레이션 — ArgoCD Sync 훅 Job(wave -1, 앱보다 먼저) (ADR-57, docs/service-runtime-contract.md 4장)
+#   1) initContainer: 같은 앱 이미지(cinema/payment)의 /app/db/migration → emptyDir 복사
+#      이미지 태그는 overlays/staging의 kustomize images가 앱 컨테이너와 함께 바꾼다(initContainer도 대상)
+#   2) flyway: payment_migrator(Secret payment-migrator-secrets, 3.1.12 Terraform)로 migrate
+#      URL은 ConfigMap payment-config의 FLYWAY_URL. 앱 URL(SPRING_DATASOURCE_URL)과 따로 둔다:
+#      flyway 이미지에는 MySQL Connector/J가 없고(GPL) MariaDB 드라이버가 jdbc:mysql을 처리한다 →
+#      MariaDB Connector/J 2.7.x는 useSsl로 TLS를 켜고 serverSslCert(RDS CA)로 서버 인증서·호스트 이름을 검증한다.
+#      sslMode(3.x 옵션)만 주면 2.x는 TLS를 켜지 않아 'RSA public key is not available'로 실패 (10/24)
+#   RDS CA: ConfigMap rds-ca-bundle(Terraform envs/staging-k8s/rds_ca.tf) → /etc/rds-ca
+#   실패 = sync 실패 → 새 버전이 뜨지 않는다. 이미 적용된 V 파일은 고치지 않고 새 V 번호로
+#   Flyway 버전은 Spring Boot 3.5.x(Flyway 11.7)·시드 적재 Job(lotte-seed)과 같게 고정
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: payment-flyway
+  labels:
+    app.kubernetes.io/name: payment-flyway
+    app.kubernetes.io/part-of: cinema
+  annotations:
+    # PreSync 대신 "Sync 단계 wave -1" 훅: PreSync는 ConfigMap보다 먼저 돌아 첫 배포(재생성 리허설 포함) 때
+    # {svc}-config가 없어 실패한다. 순서 = ConfigMap(wave -2) → 이 Job(wave -1) → Deployment/Rollout(wave 0).
+    # 실패하면 sync가 멈춰 새 버전이 뜨지 않는 것은 PreSync와 같다 (ADR-57)
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation   # 다음 sync 전에 지움 → 실패 로그는 남아 있다
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payment-flyway
+        app.kubernetes.io/part-of: cinema
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001          # 앱 이미지 사용자와 같게
+        runAsGroup: 10001
+        fsGroup: 10001
+      initContainers:
+        - name: copy-migrations
+          image: cinema/payment       # kustomize images로 ECR 주소·태그 치환
+          command: ["sh", "-c", "cp -r /app/db/migration/. /flyway/sql/ && ls /flyway/sql"]
+          volumeMounts:
+            - { name: sql, mountPath: /flyway/sql }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
+      containers:
+        - name: flyway
+          image: flyway/flyway:11.7.2
+          args: ["migrate"]
+          env:
+            - name: FLYWAY_URL
+              valueFrom:
+                configMapKeyRef: { name: payment-config, key: FLYWAY_URL }
+            - { name: FLYWAY_LOCATIONS, value: "filesystem:/flyway/sql" }
+            - { name: FLYWAY_CONNECT_RETRIES, value: "5" }
+            - { name: FLYWAY_VALIDATE_MIGRATION_NAMING, value: "true" }
+            - { name: REDGATE_DISABLE_TELEMETRY, value: "true" }
+            - { name: HOME, value: /tmp }
+          envFrom:
+            - secretRef: { name: payment-migrator-secrets }   # FLYWAY_USER, FLYWAY_PASSWORD
+          volumeMounts:
+            - { name: sql, mountPath: /flyway/sql, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+            - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - { name: sql, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+        - { name: rds-ca, configMap: { name: rds-ca-bundle } }   # Terraform이 만든다 (gitops에 없음)

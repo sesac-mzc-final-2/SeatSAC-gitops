@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: booking-preview
+  labels:
+    app.kubernetes.io/name: booking
+    app.kubernetes.io/part-of: cinema
+    cinema/service-role: preview
+spec:
+  selector: { app.kubernetes.io/name: booking }   # Argo Rollouts가 rollouts-pod-template-hash를 덧붙인다
+  ports:
+    - { name: http, port: 8080, targetPort: http }

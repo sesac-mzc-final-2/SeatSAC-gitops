@@ -1,0 +1,17 @@
+# 메트릭 수집 — PodMonitor(파드마다 1번). ServiceMonitor는 active·preview Service가 같은 파드를 가리킬 때 두 번 수집하고,
+# 블루/그린 분석에 필요한 rollouts-pod-template-hash 라벨을 붙이기 어렵다
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: catalog
+  labels:
+    app.kubernetes.io/name: catalog
+    app.kubernetes.io/part-of: cinema
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: catalog }
+  podMetricsEndpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+  podTargetLabels: [rollouts-pod-template-hash]   # → 메트릭 라벨 rollouts_pod_template_hash (분석이 preview만 고름)

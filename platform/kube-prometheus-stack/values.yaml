@@ -1,0 +1,21 @@
+# kube-prometheus-stack (3.1.7). 노드 2대 기준으로 작게, 저장소 emptyDir(밤에 노드 0대 → 보존 의미 없음, EBS CSI 없음)
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    podMonitorSelectorNilUsesHelmValues: false       # 라벨 없이 모든 PodMonitor 수집
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 200m, memory: 768Mi }
+      limits: { memory: 1536Mi }
+alertmanager:
+  enabled: false            # 경보는 3.1.7에서 결정 (CloudWatch·Grafana)
+grafana:
+  adminPassword: ""         # 비우면 차트가 랜덤 생성(Secret). 값을 여기 쓰지 않는다
+  persistence: { enabled: false }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+nodeExporter:
+  enabled: true
+kubeStateMetrics:
+  enabled: true

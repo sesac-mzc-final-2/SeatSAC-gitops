@@ -1,0 +1,22 @@
+# gateway 블루/그린 분석: preview 파드 5xx ≤ 1% (1분 × 3회) — docs/service-runtime-contract.md 5장
+# ⚠️ preview에 요청이 와야 의미가 있다(요청 0이면 0%로 통과). 분석 중 preview로 보낼 트래픽은 3.1.6에서 정한다
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: gateway-prepromotion
+spec:
+  args:
+    - name: preview-hash
+  metrics:
+    - name: http-5xx-ratio
+      interval: 1m
+      count: 3
+      failureLimit: 0
+      successCondition: result[0] <= 0.01
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          query: |
+            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",status=~"5.."}[1m])) or vector(0))
+            /
+            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}"}[1m])) > 0 or vector(1))

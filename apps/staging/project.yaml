@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cinema
+  namespace: argocd
+spec:
+  description: SeatSAC staging
+  sourceRepos:
+    - git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    - https://argoproj.github.io/argo-helm
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: cinema-staging }
+    - { server: https://kubernetes.default.svc, namespace: monitoring }
+    - { server: https://kubernetes.default.svc, namespace: argo-rollouts }
+    - { server: https://kubernetes.default.svc, namespace: kube-system }   # kube-prometheus-stack이 만드는 kubelet 등 Service
+  clusterResourceWhitelist:
+    - { group: "*", kind: "*" }     # CRD·ClusterRole (플랫폼 차트). cinema-ops·Secret은 Terraform만

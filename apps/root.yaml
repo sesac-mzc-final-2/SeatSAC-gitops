@@ -1,0 +1,17 @@
+# App of Apps 루트 — ArgoCD 설치 직후 한 번만 적용(3.1.5 런북). 이후는 이 레포 커밋만으로 바뀐다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cinema-root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    targetRevision: main
+    path: apps/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
