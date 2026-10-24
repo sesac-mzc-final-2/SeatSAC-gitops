@@ -1,0 +1,7 @@
+# ⚠️ 아이디는 SeatSAC CODEOWNERS와 같은 값으로 맞춘다
+*                               @pinodo
+/overlays/staging/gateway/      @pinodo @imi21123
+/overlays/staging/catalog/      @pinodo @imi21123
+/overlays/staging/user/         @pinodo @imi21123
+/overlays/staging/booking/      @pinodo @namgungil
+/overlays/staging/payment/      @pinodo @namgungil

@@ -1,0 +1,41 @@
+# PR마다 모든 kustomization을 빌드하고 스키마 검사 (CRD는 datreeio 카탈로그)
+name: gitops-validate
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      KUSTOMIZE_VERSION: 5.4.3
+      KUBECONFORM_VERSION: 0.6.7
+      K8S_VERSION: 1.33.0          # kubeconform 스키마가 있는 최신 근처 버전 (클러스터 1.36)
+    steps:
+      - uses: actions/checkout@v4
+      - name: 도구 설치
+        run: |
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar xz
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+      - name: kustomize build + kubeconform
+        run: |
+          set -euo pipefail
+          fail=0
+          for k in $(find base overlays apps analysis -name kustomization.yaml | sort); do
+            d=$(dirname "$k")
+            echo "::group::$d"
+            if ./kustomize build "$d" > /tmp/out.yaml; then
+              ./kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+                /tmp/out.yaml || fail=1
+            else
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
+      - name: 비밀 값 금지 (Secret 매니페스트 없음)
+        run: |
+          if grep -rIl --include='*.yaml' -E '^kind:\s*Secret\b' . ; then
+            echo "::error::Secret 매니페스트는 gitops에 두지 않는다 (Terraform이 생성)"; exit 1; fi

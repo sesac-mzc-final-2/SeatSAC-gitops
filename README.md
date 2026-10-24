@@ -4,6 +4,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 **이 레포의 main 머지 = 배포.** 앱 코드·Terraform은 `SeatSAC` 레포, 규칙은 SeatSAC `docs/service-runtime-contract.md`가 기준이다.
 
 - Private 유지 (계정 ID·엔드포인트 등 실제 배포 값이 들어 있음)
+- main ruleset: 사람은 PR만. 우회 목록에 **Deploy keys**(SeatSAC `build-push`의 태그 커밋) — SeatSAC 런북 6-A-3
 - Secret 매니페스트를 두지 않는다 — `{svc}-secrets`·`{svc}-migrator-secrets`는 SeatSAC Terraform(`envs/staging-k8s`)이 만든다. CI가 막는다
 - 클러스터를 `kubectl apply/edit`로 직접 고치지 않는다 (selfHeal이 되돌린다)
 
@@ -50,7 +51,7 @@ wave   0  cinema-{svc} 앱마다:
 ## 배포 흐름
 
 1. SeatSAC main 머지 → `build-push`가 이미지 `cinema/{svc}:{sha7}`을 ECR에 올리고
-2. 이 레포 `overlays/staging/{svc}/kustomization.yaml`의 `newTag`를 커밋 (`kustomize edit set image`)
+2. 이 레포 `overlays/staging/{svc}/kustomization.yaml`의 `images[cinema/{svc}]` `newName`·`newTag`만 yq로 바꿔 main에 직접 커밋 (`deploy(staging): {svc} → {sha7}`, 쓰기 Deploy key `seatsac-build-push`). booking·gateway가 같이 바뀌면 booking만
 3. ArgoCD가 sync → Flyway → 롤링 또는 블루/그린(분석 통과 시 전환)
 
 - **롤백**: 직전 태그 커밋을 revert하는 PR
@@ -61,8 +62,7 @@ wave   0  cinema-{svc} 앱마다:
 
 | 값 | 어디서 | 언제 |
 | --- | --- | --- |
-| `ACCOUNT_ID` (ECR 주소) | AWS 계정 ID | 3.1.4 |
-| `newTag` | build-push가 커밋 | 3.1.4 |
+| `ACCOUNT_ID`·`newTag` (ECR 주소·태그) | build-push가 첫 실행 때 같이 채움 (사람이 고치지 않음) | 3.1.4 |
 | `CHANGE_ME_RDS_ENDPOINT` · `CHANGE_ME_VALKEY_ENDPOINT` | SeatSAC `envs/staging` output `rds_endpoint` · `valkey_primary_endpoint` | 3.1.5 |
 | `APP_SQS_NOTIFICATION_QUEUE_URL` | 3.1.8 output | 3.1.8 |
 | `APP_COGNITO_ISSUER_URI` · `APP_COGNITO_CLIENT_ID` | 3.1.11 Cognito output | 3.1.11 |
@@ -72,7 +72,6 @@ wave   0  cinema-{svc} 앱마다:
 
 - 블루/그린 분석은 preview 파드로 들어오는 요청이 있어야 의미가 있다. 요청이 0이면 0%로 통과한다. 분석 중 preview로 트래픽을 보내는 방법은 3.1.6에서 정한다
 - ArgoCD 설치 방법과 이 레포를 읽는 Deploy key 등록은 3.1.5 (SeatSAC 런북)
-- CI 봇의 이미지 태그 커밋 권한(쓰기 키·ruleset 예외)은 3.1.4
 
 ## 로컬 확인
 

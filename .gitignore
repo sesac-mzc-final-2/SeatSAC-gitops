@@ -1,0 +1,17 @@
+# helm 차트 받기 (helm pull) 결과
+*.tgz
+charts/
+# kustomize build 결과를 파일로 남길 때
+/out/
+/rendered/
+# 키·접속 정보 — Secret 매니페스트·키는 이 레포에 두지 않는다
+*.pem
+*.key
+kubeconfig
+*.kubeconfig
+.env
+.env.*
+# 에디터·OS
+.idea/
+.vscode/
+.DS_Store
