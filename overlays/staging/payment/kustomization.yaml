@@ -1,15 +1,16 @@
-# payment staging. 이미지 태그는 SeatSAC build-push(3.1.4)가 커밋한다 — 사람이 직접 바꾸지 않는다(롤백은 revert PR)
-# 값 출처: CHANGE_ME_* = envs/staging terraform output (rds_endpoint · valkey_primary_endpoint · 3.1.8 큐 URL · 3.1.11 Cognito)
-# Secret 값은 여기 두지 않는다 (payment-secrets·payment-migrator-secrets는 Terraform)
+# payment staging 값. 이 레포는 Public → 계정 ID·엔드포인트·키를 쓰지 않는다 (gitops-validate가 막는다)
+#   - 이미지 태그: ./image-tag (SeatSAC build-push가 newTag만 커밋. 사람이 직접 바꾸지 않는다, 롤백은 revert PR)
+#   - 레지스트리 주소: ArgoCD Application(SeatSAC Terraform envs/staging-k8s/argocd_apps.tf)의 kustomize.images가 붙인다
+#   - ${DB_HOST} 같은 값: Terraform ConfigMap cinema-infra-endpoints(envs/staging-k8s/infra_endpoints.tf)를
+#     파드가 envFrom으로 같이 받고, Spring이 기동 때 치환한다 (쿠버네티스는 envFrom 값을 치환하지 않는다)
+#   - Secret 값은 여기 두지 않는다 (payment-secrets·payment-migrator-secrets는 Terraform)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: cinema-staging
 resources:
   - ../../../base/payment
-images:
-  - name: cinema/payment
-    newName: ACCOUNT_ID.dkr.ecr.ap-northeast-2.amazonaws.com/cinema/payment
-    newTag: CHANGE_ME
+components:
+  - ./image-tag                   # 태그만. 레지스트리는 ArgoCD가 이 overlay에 images(이름만)로 붙인다
 generatorOptions:
   annotations:
     argocd.argoproj.io/sync-wave: "-2"     # Flyway Job(-1)보다 먼저
@@ -18,8 +19,7 @@ configMapGenerator:
     literals:
       - SPRING_PROFILES_ACTIVE=staging
       - AWS_REGION=ap-northeast-2
-      - SPRING_DATASOURCE_URL=jdbc:mysql://CHANGE_ME_RDS_ENDPOINT:3306/payment_db?connectionTimeZone=UTC&sslMode=REQUIRED
-      - FLYWAY_URL=jdbc:mysql://CHANGE_ME_RDS_ENDPOINT:3306/payment_db?useSsl=true&serverSslCert=/etc/rds-ca/rds-ca.pem&trustServerCertificate=false&disableSslHostnameVerification=false&sslMode=verify-full
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}:3306/payment_db?connectionTimeZone=UTC&sslMode=REQUIRED
       - SPRING_DATASOURCE_USERNAME=payment_app
       - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
       - SPRING_FLYWAY_ENABLED=false

@@ -14,7 +14,7 @@ spec:
       targetRevision: CHANGE_ME
       helm:
         valueFiles: [$values/platform/kube-prometheus-stack/values.yaml]
-    - repoURL: git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    - repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
       targetRevision: main
       ref: values
   destination:

@@ -1,0 +1,9 @@
+# gateway 이미지 태그 — SeatSAC build-push가 newTag만 커밋한다 (커밋 작성자 seatsac-build-push[bot]). 사람이 고치지 않는다
+# newName(레지스트리)을 여기 쓰지 않는다: 계정 ID가 Public 레포에 들어간다. build-push·gitops-validate가 막는다
+# Component로 따로 둔 이유: ArgoCD가 kustomize.images(이름만)를 overlay에 붙일 때 같은 파일에 newTag가 있으면 태그가 지워진다
+#   → 여기서 먼저 태그를 붙이고(cinema/gateway:태그), overlay 단계에서 ArgoCD가 레지스트리만 바꾼다
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - name: cinema/gateway
+    newTag: CHANGE_ME

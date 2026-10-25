@@ -1,3 +1,6 @@
+# 서비스 Application 5개(cinema-{gateway,catalog,booking,user,payment})는 여기 없다:
+# 레지스트리 주소(계정 ID)를 Public 레포에 두지 않으려고 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf)이
+# kustomize.images로 레지스트리를 붙여 만든다. 이 레포에는 이미지 이름 cinema/{svc}와 태그만 있다
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -5,8 +8,3 @@ resources:
   - platform-argo-rollouts.yaml
   - platform-kube-prometheus-stack.yaml
   - cinema-common.yaml
-  - cinema-gateway.yaml
-  - cinema-booking.yaml
-  - cinema-catalog.yaml
-  - cinema-user.yaml
-  - cinema-payment.yaml
