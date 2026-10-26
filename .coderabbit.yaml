@@ -29,7 +29,7 @@ reviews:
   path_instructions:
     - path: "**"
       instructions: >
-        이 레포는 Public이다(ADR-66). 12자리 계정 ID, AWS 서비스 주소(amazonaws 도메인의 RDS·Valkey·SQS·Cognito·ECR), images의 newName,
+        이 레포는 Public이다(ADR-74). 12자리 계정 ID, AWS 서비스 주소(amazonaws 도메인의 RDS·Valkey·SQS·Cognito·ECR), images의 newName,
         kind: Secret 매니페스트, 키·토큰·비밀번호가 어떤 파일에든 보이면 반드시 지적한다.
         엔드포인트는 ${키}(Terraform ConfigMap cinema-infra-endpoints)로만, 레지스트리는 Terraform ArgoCD Application이 붙인다.
         이 레포의 main 머지 = staging 배포다. 클러스터 동작이 바뀌는 변경은 요약에 "배포 영향"으로 명시한다.
@@ -71,6 +71,12 @@ reviews:
         Argo Rollouts 블루/그린: activeService {svc}, previewService {svc}-preview, prePromotionAnalysis(analysis/), scaleDownDelaySeconds 60, autoPromotionEnabled 확인.
         gateway는 HPA가 없어야 한다(블루/그린 중 2개). booking HPA는 1~4, CPU 70%.
 
+    - path: "base/gateway/ingress.yaml"
+      instructions: >
+        Ingress 이름 gateway·namespace cinema-staging은 CloudFront가 ALB를 찾는 태그(ingress.k8s.aws/stack)라 바꾸면 지적한다.
+        security-groups는 SG 이름 cinema-staging-alb(ID 금지), target-type ip, 유휴 120초·deregistration 30초, health check는 readiness 경로여야 한다.
+        listen-ports에 443이나 0.0.0.0/0 인바운드를 여는 변경은 ADR-66(CloudFront 원본 구간) 결정과 함께 보아야 한다.
+
     - path: "base/**/networkpolicy.yaml"
       instructions: >
         인바운드 허용은 런타임 계약 6장 표만: ALB(VPC CIDR)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, monitoring→전체(8080).
@@ -90,8 +96,9 @@ reviews:
     - path: "apps/**"
       instructions: >
         App of Apps다. repoURL은 https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git (Public, 자격 증명 없음). SSH 주소로 바꾸면 지적한다.
-        서비스 Application(cinema-{gateway,catalog,booking,user,payment})은 레지스트리 때문에 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf)이 만든다. 여기 추가되면 지적한다.
-        Helm 차트 targetRevision은 정확한 버전으로 고정한다. *·latest·범위 표기는 지적한다. sync-wave 순서(플랫폼 -10 → cinema-common -5)를 유지한다.
+        root 앱(cinema-root)과 서비스 Application(cinema-{gateway,catalog,booking,user,payment})은 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf)이 만든다(레지스트리 주소 때문). 여기 추가되면 지적한다.
+        AppProject는 sync-wave -20, 플랫폼 -10, cinema-common -5 순서를 유지한다. 각 앱의 syncPolicy.retry를 지우면 지적한다.
+        Helm 차트 targetRevision은 정확한 버전으로 고정한다. *·latest·범위 표기·CHANGE_ME는 지적한다.
         AppProject의 sourceRepos·destinations가 넓어지면 이유를 묻는다.
 
     - path: "components/**"

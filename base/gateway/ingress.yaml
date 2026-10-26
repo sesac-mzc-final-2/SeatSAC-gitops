@@ -1,0 +1,41 @@
+# gateway Ingress → ALB (AWS Load Balancer Controller, 3.1.2 Terraform 설치)
+#   CloudFront /api/* 원본. CloudFront(envs/staging cloudfront.tf)는 ALB 태그 ingress.k8s.aws/stack=cinema-staging/gateway로
+#   이 ALB를 찾는다 → Ingress 이름·namespace를 바꾸면 CloudFront가 원본을 못 찾는다
+#   보안그룹: Terraform이 만든 cinema-staging-alb(이름으로 지정 — Public 레포라 ID를 쓰지 않는다). CloudFront 접두사 목록에서만 80 허용,
+#   노드 SG의 ALB → 8080 규칙도 Terraform(3.1.2)이 이미 넣었다 → 컨트롤러가 규칙을 만들지 않게 manage-backend…=false
+#   SSE(런타임 계약 6장 ②): 유휴 120초, 내려가는 파드 정리 30초(terminationGracePeriodSeconds 35보다 짧게)
+#   블루/그린: ALB는 active Service gateway의 엔드포인트(파드 IP)로 보낸다. Rollout이 전환하면 대상이 바뀐다
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: cinema
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-name: cinema-staging-gateway
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/security-groups: cinema-staging-alb
+    alb.ingress.kubernetes.io/manage-backend-security-group-rules: "false"
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "10"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=120
+    alb.ingress.kubernetes.io/target-group-attributes: deregistration_delay.timeout_seconds=30
+    alb.ingress.kubernetes.io/tags: Project=cinema,Env=staging,ManagedBy=aws-load-balancer-controller
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port: { name: http }

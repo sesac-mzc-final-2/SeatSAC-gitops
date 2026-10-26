@@ -1,3 +1,4 @@
+# 앱 namespace 공통: 인바운드 기본 거부 NetworkPolicy + AnalysisTemplate(Rollout CRD 필요 → argo-rollouts(-10) 다음)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -16,3 +17,6 @@ spec:
     namespace: cinema-staging
   syncPolicy:
     automated: { prune: true, selfHeal: true }
+    retry:
+      limit: 10
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

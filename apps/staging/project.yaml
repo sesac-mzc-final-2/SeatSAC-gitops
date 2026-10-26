@@ -3,6 +3,8 @@ kind: AppProject
 metadata:
   name: cinema
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"   # 이 프로젝트를 쓰는 앱(-10·-5)보다 먼저. 늦으면 앱이 "project does not exist"로 멈춘다
 spec:
   description: SeatSAC staging
   sourceRepos:
