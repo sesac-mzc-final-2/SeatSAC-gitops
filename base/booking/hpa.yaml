@@ -1,81 +1,25 @@
-# booking — 블루/그린 (ADR-35·58). active=booking, preview=booking-preview, 분석 통과 후 전환, 이전 버전 60초 뒤 축소
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
   name: booking
   labels:
     app.kubernetes.io/name: booking
     app.kubernetes.io/part-of: cinema
 spec:
-  # replicas를 두지 않는다 — HPA가 관리한다. 두면 ArgoCD가 HPA가 늘린 값을 OutOfSync로 보고 selfHeal로 1로 되돌린다(HPA와 싸움)
-  revisionHistoryLimit: 3
-  selector:
-    matchLabels: { app.kubernetes.io/name: booking }
-  strategy:
-    blueGreen:
-      activeService: booking
-      previewService: booking-preview
-      autoPromotionEnabled: true          # 분석 통과하면 자동 전환
-      scaleDownDelaySeconds: 60
-      prePromotionAnalysis:
-        templates:
-          - templateName: booking-prepromotion     # analysis/
-        args:
-          - name: preview-hash
-            valueFrom:
-              podTemplateHashValue: Preview
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: booking
-        app.kubernetes.io/part-of: cinema
-    spec:
-      terminationGracePeriodSeconds: 35
-      automountServiceAccountToken: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        fsGroup: 10001
-      topologySpreadConstraints:              # ng-a·ng-c(AZ a·c)에 나눠 배치
-        - maxSkew: 1
-          topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels: { app.kubernetes.io/name: booking }
-      containers:
-        - name: booking
-          image: cinema/booking                  # overlay images가 ECR 주소·태그로 바꾼다
-          ports:
-            - { name: http, containerPort: 8080 }
-          envFrom:
-          - configMapRef: { name: cinema-infra-endpoints }   # Terraform(staging-k8s) — DB_HOST 등. booking-config의 ${...} 값
-          - configMapRef: { name: booking-config }
-          - secretRef: { name: booking-secrets }       # Terraform(staging-k8s) 생성
-          # readiness 그룹: readinessState,db
-          startupProbe:
-            httpGet: { path: /actuator/health/readiness, port: http }
-            periodSeconds: 5
-            failureThreshold: 30
-          readinessProbe:
-            httpGet: { path: /actuator/health/readiness, port: http }
-            periodSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            httpGet: { path: /actuator/health/liveness, port: http }
-            periodSeconds: 10
-            failureThreshold: 3
-          lifecycle:
-            preStop:
-              exec: { command: ["sleep", "5"] }   # 엔드포인트 제거가 퍼질 시간
-          resources:
-            requests: { cpu: 250m, memory: 512Mi }
-            limits: { memory: 768Mi }        # cpu limit 없음 (스로틀로 p95 악화)
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: { drop: ["ALL"] }
-          volumeMounts:
-            - { name: tmp, mountPath: /tmp }
-      volumes:
-        - { name: tmp, emptyDir: {} }
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: booking
+  minReplicas: 1
+  maxReplicas: 4
+  # 늘릴 때는 1분에 1개씩(노드 2대 — 한 번에 4개로 뛰면 메모리가 모자라 다른 서비스가 밀린다). 줄일 때는 기본(5분 안정화)
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - { type: Pods, value: 1, periodSeconds: 60 }
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
