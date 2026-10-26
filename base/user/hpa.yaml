@@ -12,6 +12,12 @@ spec:
     name: user
   minReplicas: 1
   maxReplicas: 2
+  # 늘릴 때는 1분에 1개씩(노드 2대 — 한 번에 4개로 뛰면 메모리가 모자라 다른 서비스가 밀린다). 줄일 때는 기본(5분 안정화)
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - { type: Pods, value: 1, periodSeconds: 60 }
   metrics:
     - type: Resource
       resource:

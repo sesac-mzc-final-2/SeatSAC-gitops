@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: catalog
     app.kubernetes.io/part-of: cinema
 spec:
-  replicas: 1
+  # replicas를 두지 않는다 — HPA가 관리한다. 두면 ArgoCD가 HPA가 늘린 값을 OutOfSync로 보고 selfHeal로 1로 되돌린다(HPA와 싸움)
   revisionHistoryLimit: 3
   selector:
     matchLabels: { app.kubernetes.io/name: catalog }
