@@ -47,10 +47,11 @@ jobs:
             echo "::error::Secret 매니페스트는 gitops에 두지 않는다 (Terraform이 생성)"; exit 1; fi
       - name: Public 레포 금지 값 (계정 ID·AWS 엔드포인트·레지스트리)
         run: |
-          # 12자리 숫자(계정 ID), *.amazonaws.com(RDS·Valkey·SQS·Cognito·ECR), images의 newName
+          # 모든 파일(문서 포함)에서 12자리 숫자(계정 ID), AWS 서비스 도메인(RDS·Valkey·SQS·Cognito·ECR 주소), images의 newName을 찾는다
+          # 이 워크플로 파일만 뺀다(패턴 자체가 들어 있다). 설명 문구에는 실제 도메인을 쓰지 않는다
           # 엔드포인트는 Terraform ConfigMap cinema-infra-endpoints, 레지스트리는 Terraform ArgoCD Application이 붙인다
           bad=$(grep -rInE '(^|[^0-9])[0-9]{12}([^0-9]|$)|amazonaws\.com|^\s*newName:' \
-                --include='*.yaml' --include='*.yml' --include='*.json' --exclude-dir=.git --exclude-dir=.github . || true)
+                --exclude-dir=.git --exclude=gitops-validate.yml . || true)
           if [ -n "$bad" ]; then
             echo "$bad" | sed -E 's/[0-9]{12}/<12자리>/g'
             echo "::error::Public 레포에 계정 ID·AWS 엔드포인트·newName을 두지 않는다 (README '값은 어디서 오나')"; exit 1

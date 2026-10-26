@@ -3,7 +3,7 @@
 SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main`을 클러스터(`cinema-staging-eks`)에 그대로 맞춘다.
 **이 레포의 main 머지 = 배포.** 앱 코드·Terraform은 `SeatSAC` 레포, 규칙은 SeatSAC `docs/service-runtime-contract.md`가 기준이다.
 
-- **Public 레포다** (GitHub 무료 플랜은 Private 레포에 ruleset을 적용하지 않는다, SeatSAC ADR-66). 그래서 **계정 ID·AWS 엔드포인트·레지스트리 주소·키를 두지 않는다** → 아래 "값은 어디서 오나". `gitops-validate`가 막는다
+- **Public 레포다** (GitHub 무료 플랜은 Private 레포에 ruleset을 적용하지 않는다, SeatSAC ADR-74). 그래서 **계정 ID·AWS 엔드포인트·레지스트리 주소·키를 두지 않는다** → 아래 "값은 어디서 오나". `gitops-validate`가 막는다
 - ArgoCD는 이 레포를 HTTPS로 읽는다(자격 증명 없음)
 - main ruleset: 사람은 PR만. 우회 목록에 **GitHub App `seatsac-build-push`**(SeatSAC `build-push`의 태그 커밋) — SeatSAC 런북 6-A-3. 조직 정책상 Deploy key는 쓰지 않는다
 - Secret 매니페스트를 두지 않는다 — `{svc}-secrets`·`{svc}-migrator-secrets`는 SeatSAC Terraform(`envs/staging-k8s`)이 만든다. CI가 막는다
@@ -88,8 +88,10 @@ kustomize build overlays/staging/booking | less
 
 ```bash
 # ArgoCD가 하는 것처럼 레지스트리까지 붙여 보기 (임시 복사본에서, 결과를 커밋·붙여 넣지 않는다)
-cp -r overlays/staging/booking /tmp/ov && cd /tmp/ov && \
-  kustomize edit set image cinema/booking=example.invalid/cinema/booking && kustomize build . | grep image:
+# overlays/staging/ 아래 같은 깊이에 임시 사본 → base·Component 상대 경로가 그대로 맞는다. 끝나면 지운다(커밋하지 않는다)
+cp -r overlays/staging/booking overlays/staging/_sim-booking
+(cd overlays/staging/_sim-booking && kustomize edit set image cinema/booking=example.invalid/cinema/booking && kustomize build . | grep image:)
+rm -rf overlays/staging/_sim-booking
 ```
 
-PR이 올라오면 `gitops-validate`가 모든 kustomization에 대해 `kustomize build`와 kubeconform 검사를 돌리고, Secret 매니페스트·12자리 숫자(계정 ID)·`*.amazonaws.com`·`newName`이 있으면 실패한다. gitleaks도 같이 돈다.
+PR이 올라오면 `gitops-validate`가 모든 kustomization에 대해 `kustomize build`와 kubeconform 검사를 돌리고, 모든 파일(이 README 포함)에 Secret 매니페스트·12자리 숫자(계정 ID)·AWS 서비스 도메인 주소·`newName`이 있으면 실패한다. gitleaks도 같이 돈다.
