@@ -8,7 +8,7 @@ metadata:
 spec:
   project: cinema
   source:
-    repoURL: git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
     targetRevision: main
     path: base/common
   destination:

@@ -39,6 +39,7 @@ spec:
           ports:
             - { name: http, containerPort: 8080 }
           envFrom:
+          - configMapRef: { name: cinema-infra-endpoints }   # Terraform(staging-k8s) — DB_HOST 등. catalog-config의 ${...} 값
           - configMapRef: { name: catalog-config }
           - secretRef: { name: catalog-secrets }       # Terraform(staging-k8s) 생성
           # readiness 그룹: readinessState,db

@@ -1,12 +1,17 @@
 # PR마다 모든 kustomization을 빌드하고 스키마 검사 (CRD는 datreeio 카탈로그)
+# 이 레포는 Public → 계정 ID·AWS 엔드포인트·레지스트리·Secret이 들어오면 실패 (값은 SeatSAC Terraform에만)
 name: gitops-validate
 on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: gitops-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       KUSTOMIZE_VERSION: 5.4.3
       KUBECONFORM_VERSION: 0.6.7
@@ -22,6 +27,7 @@ jobs:
           set -euo pipefail
           fail=0
           for k in $(find base overlays apps analysis -name kustomization.yaml | sort); do
+            grep -q '^kind: Component' "$k" && continue   # image-tag 등 Component는 overlay 빌드에 포함된다
             d=$(dirname "$k")
             echo "::group::$d"
             if ./kustomize build "$d" > /tmp/out.yaml; then
@@ -39,3 +45,36 @@ jobs:
         run: |
           if grep -rIl --include='*.yaml' -E '^kind:\s*Secret\b' . ; then
             echo "::error::Secret 매니페스트는 gitops에 두지 않는다 (Terraform이 생성)"; exit 1; fi
+      - name: Public 레포 금지 값 (계정 ID·AWS 엔드포인트·레지스트리)
+        run: |
+          # 모든 파일(문서 포함)에서 12자리 숫자(계정 ID), AWS 서비스 도메인(RDS·Valkey·SQS·Cognito·ECR 주소), images의 newName을 찾는다
+          # 이 워크플로 파일만 뺀다(패턴 자체가 들어 있다). 설명 문구에는 실제 도메인을 쓰지 않는다
+          # 엔드포인트는 Terraform ConfigMap cinema-infra-endpoints, 레지스트리는 Terraform ArgoCD Application이 붙인다
+          bad=$(grep -rInE '(^|[^0-9])[0-9]{12}([^0-9]|$)|amazonaws\.com|^\s*newName:' \
+                --exclude-dir=.git --exclude=gitops-validate.yml . || true)
+          if [ -n "$bad" ]; then
+            echo "$bad" | sed -E 's/[0-9]{12}/<12자리>/g'
+            echo "::error::Public 레포에 계정 ID·AWS 엔드포인트·newName을 두지 않는다 (README '값은 어디서 오나')"; exit 1
+          fi
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GITLEAKS_VERSION: "8.21.2"   # SeatSAC pr-check와 같은 버전
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Install gitleaks (체크섬 확인)
+        run: |
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          tgz="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfLO "$base/$tgz"
+          curl -sSfL "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" | grep " $tgz\$" | sha256sum -c -
+          tar -xzf "$tgz" -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan PR commits
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: gitleaks git --redact --verbose --exit-code 1 --log-opts="$BASE..$HEAD"

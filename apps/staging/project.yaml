@@ -6,7 +6,7 @@ metadata:
 spec:
   description: SeatSAC staging
   sourceRepos:
-    - git@github.com:sesac-mzc-final-2/SeatSAC-gitops.git
+    - https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
     - https://argoproj.github.io/argo-helm
     - https://prometheus-community.github.io/helm-charts
   destinations:
