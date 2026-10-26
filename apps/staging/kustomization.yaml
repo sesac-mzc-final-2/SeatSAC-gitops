@@ -1,3 +1,6 @@
+# root 앱(cinema-root)이 이 폴더를 sync한다. root와 서비스 Application은 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf, 3.1.5)
+# 순서(sync-wave): project(-20) → argo-rollouts·kube-prometheus-stack(-10, CRD) → cinema-common(-5)
+#   ArgoCD가 Application health를 계산하게 해 두어(envs/staging-k8s/argocd.tf) 앞 wave가 Healthy가 된 뒤 다음으로 간다
 # 서비스 Application 5개(cinema-{gateway,catalog,booking,user,payment})는 여기 없다:
 # 레지스트리 주소(계정 ID)를 Public 레포에 두지 않으려고 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf)이
 # kustomize.images로 레지스트리를 붙여 만든다. 이 레포에는 이미지 이름 cinema/{svc}와 태그만 있다

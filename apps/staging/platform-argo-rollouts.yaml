@@ -1,4 +1,4 @@
-# 차트 버전은 CHANGE_ME → helm search repo로 확인해 고정 (lbc_chart_version과 같은 방식)
+# 차트 버전 고정(argo-rollouts 2.43.8, 3.1.5). 올릴 때만 PR — 먼저 helm search repo로 실제 있는 버전인지 확인
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -11,7 +11,7 @@ spec:
   sources:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-rollouts
-      targetRevision: CHANGE_ME
+      targetRevision: 2.43.8
       helm:
         valueFiles: [$values/platform/argo-rollouts/values.yaml]
     - repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
@@ -23,3 +23,6 @@ spec:
   syncPolicy:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry:
+      limit: 10
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

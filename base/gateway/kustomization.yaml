@@ -4,5 +4,6 @@ resources:
   - rollout.yaml
   - service.yaml
   - service-preview.yaml
+  - ingress.yaml
   - networkpolicy.yaml
   - podmonitor.yaml

@@ -4,7 +4,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 **이 레포의 main 머지 = 배포.** 앱 코드·Terraform은 `SeatSAC` 레포, 규칙은 SeatSAC `docs/service-runtime-contract.md`가 기준이다.
 
 - **Public 레포다** (GitHub 무료 플랜은 Private 레포에 ruleset을 적용하지 않는다, SeatSAC ADR-74). 그래서 **계정 ID·AWS 엔드포인트·레지스트리 주소·키를 두지 않는다** → 아래 "값은 어디서 오나". `gitops-validate`가 막는다
-- ArgoCD는 이 레포를 HTTPS로 읽는다(자격 증명 없음)
+- ArgoCD는 이 레포를 HTTPS로 읽는다(자격 증명 없음). ArgoCD 설치·root 앱·서비스 Application은 SeatSAC Terraform `envs/staging-k8s`(3.1.5)
 - main ruleset: 사람은 PR만. 우회 목록에 **GitHub App `seatsac-build-push`**(SeatSAC `build-push`의 태그 커밋) — SeatSAC 런북 6-A-3. 조직 정책상 Deploy key는 쓰지 않는다
 - Secret 매니페스트를 두지 않는다 — `{svc}-secrets`·`{svc}-migrator-secrets`는 SeatSAC Terraform(`envs/staging-k8s`)이 만든다. CI가 막는다
 - 클러스터를 `kubectl apply/edit`로 직접 고치지 않는다 (selfHeal이 되돌린다)
@@ -14,14 +14,14 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 ```
 .
 ├── apps/                          ArgoCD Application (App of Apps)
-│   ├── root.yaml                  루트 — ArgoCD 설치 직후 한 번만 적용
-│   └── staging/                   project · 플랫폼 2 · cinema-common (서비스 Application 5개는 SeatSAC Terraform)
+│   └── staging/                   project · 플랫폼 2 · cinema-common
+│                                  (root 앱 cinema-root·서비스 Application 5개는 SeatSAC Terraform argocd_apps.tf)
 ├── platform/                      Helm 차트 values (차트 자체는 apps/staging에서 버전 고정)
 │   ├── argo-rollouts/
 │   └── kube-prometheus-stack/
 ├── base/                          서비스별 공통 매니페스트 (값 없음)
 │   ├── common/                    앱 namespace 인바운드 기본 거부 + analysis
-│   ├── gateway/  booking/         Rollout(블루/그린) · Service · preview Service · NetworkPolicy · PodMonitor
+│   ├── gateway/  booking/         Rollout(블루/그린) · Service · preview Service · NetworkPolicy · PodMonitor (gateway는 + Ingress → ALB)
 │   ├── catalog/  user/  payment/  Deployment(롤링) · Service · NetworkPolicy · PodMonitor
 │   └── {catalog,booking,user,payment}/flyway-job.yaml   DB 마이그레이션 훅 Job (gateway는 DB 없음)
 ├── overlays/staging/{svc}/        staging 값: ConfigMap {svc}-config (엔드포인트는 ${키}만)
@@ -44,11 +44,32 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 ## sync 순서
 
 ```
-wave -10  argo-rollouts · kube-prometheus-stack (CRD)
-wave  -5  cinema-common (기본 거부 NetworkPolicy · AnalysisTemplate)
-wave   0  cinema-{svc} 앱마다 (Application은 SeatSAC Terraform envs/staging-k8s/argocd_apps.tf):
-            ConfigMap {svc}-config (wave -2) → Flyway Job (Sync 훅, wave -1) → Rollout/Deployment (wave 0)
+Terraform (SeatSAC envs/staging-k8s, 한 번의 apply)
+  ArgoCD(helm) → argocd-apps(helm): cinema-root + cinema-{svc}
+
+cinema-root (apps/staging) — 앞 wave 앱이 Healthy가 된 뒤 다음 wave (Application health 계산 켬)
+  wave -20  AppProject cinema
+  wave -10  argo-rollouts · kube-prometheus-stack (Rollout·PodMonitor CRD)
+  wave  -5  cinema-common (기본 거부 NetworkPolicy · AnalysisTemplate)
+
+cinema-{svc} (root 밖, 동시에 시작 — CRD가 아직 없으면 재시도 10회·최대 약 20분으로 맞춘다)
+  ConfigMap {svc}-config (wave -2) → Flyway Job (Sync 훅, wave -1) → Rollout/Deployment·Ingress (wave 0)
 ```
+
+| 앱 | 차트·경로 | 버전 |
+| --- | --- | --- |
+| argo-rollouts | argo-helm `argo-rollouts` | `2.43.8` |
+| kube-prometheus-stack | prometheus-community `kube-prometheus-stack` | `92.13.1` |
+| ArgoCD 자체 | SeatSAC `staging-k8s.tfvars` `argocd_chart_version` | Terraform |
+
+## 상태 보기
+
+```bash
+kubectl -n argocd get applications                      # 팀원도 가능 (cinema-dev)
+kubectl -n argocd port-forward svc/argocd-server 8080:80   # http://localhost:8080 — 로그인 없이 읽기 전용
+```
+
+sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR로 고치는 것이 원칙이다
 
 ## 배포 흐름
 
@@ -70,7 +91,7 @@ wave   0  cinema-{svc} 앱마다 (Application은 SeatSAC Terraform envs/staging-
 | SQS 큐 URL | `${SQS_NOTIFICATION_URL}` | 위와 같음 | booking |
 | Cognito issuer·client ID | `${COGNITO_ISSUER_URI}` · `${COGNITO_CLIENT_ID}` | 위와 같음 (Cognito 전에는 빈 값) | gateway |
 | DB 비밀번호 | Secret 이름만 | `{svc}-secrets`·`{svc}-migrator-secrets` (Terraform) | envFrom |
-| 차트 `targetRevision` | `CHANGE_ME` | `helm search repo` 결과로 고정 (비밀 아님, 이 레포에 커밋) | 3.1.6 · 3.1.7 |
+| 차트 `targetRevision` | 정확한 버전 (위 표) | `helm search repo`로 확인해 PR (비밀 아님) | 이 레포 |
 
 - 새 엔드포인트가 필요하면 SeatSAC `docs/service-runtime-contract.md` 3장 표와 `infra_endpoints.tf`에 먼저 키를 추가하고, 여기에는 `${키}`만 쓴다
 - 로그·PR에 이미지 주소를 붙일 때 계정 ID는 `<ACCOUNT_ID>`로 가린다
@@ -78,7 +99,7 @@ wave   0  cinema-{svc} 앱마다 (Application은 SeatSAC Terraform envs/staging-
 ## 열린 항목
 
 - 블루/그린 분석은 preview 파드로 들어오는 요청이 있어야 의미가 있다. 요청이 0이면 0%로 통과한다. 분석 중 preview로 트래픽을 보내는 방법은 3.1.6에서 정한다
-- ArgoCD 설치 방법은 3.1.5 (SeatSAC 런북). 서비스 Application은 ArgoCD 설치·root sync 뒤 Terraform `argocd_apps_enabled = true`로 만든다(SeatSAC 런북 6-C)
+- gateway Application은 Cognito(3.3.x) 적용 후 Terraform `cognito_enabled = true`로 생긴다(SeatSAC 런북 6-C). 그 전에는 ALB·CloudFront `/api`가 없다
 
 ## 로컬 확인
 
