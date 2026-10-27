@@ -65,7 +65,7 @@ spec:
       initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
       interval: 1m
       count: 3
-      failureLimit: 1   # 트래픽 확인용 — 첫 측정 1회는 늦게 뜬 Job을 봐준다(5xx·결제는 0)
+      failureLimit: 0   # 세 측정 모두 ≥ 20건. 늦게 뜬 Job은 initialDelay 2m로 흡수한다(failureLimit 1은 '아무 측정 1회'를 봐줘서 마지막 측정이 0건이어도 통과됨)
       successCondition: result[0] >= 20
       provider:
         prometheus:
