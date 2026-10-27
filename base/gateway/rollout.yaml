@@ -9,6 +9,10 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 3
+  # preview가 이 시간 안에 Ready가 되지 않으면(기동 실패·CrashLoop·이미지 없음) abort → active 유지 (3.1.6)
+  #   startupProbe 최대 150초 + 이미지 pull·Flyway 여유. 분석(약 4분)은 이 시간에 포함되지 않는다
+  progressDeadlineSeconds: 600
+  progressDeadlineAbort: true
   selector:
     matchLabels: { app.kubernetes.io/name: gateway }
   strategy:
@@ -16,7 +20,11 @@ spec:
       activeService: gateway
       previewService: gateway-preview
       autoPromotionEnabled: true          # 분석 통과하면 자동 전환
-      scaleDownDelaySeconds: 60
+      # preview는 1개만 — 분석은 1개로 충분하고, HPA가 active를 늘린 상태에서 같은 수로 띄우면 노드 2대에 안 들어간다(남궁일 리뷰)
+      #   전환 직전에는 Argo Rollouts가 preview를 active 수까지 늘린다 → 전환 순간~scaleDownDelay 60초만 2배
+      previewReplicaCount: 1
+      scaleDownDelaySeconds: 60           # 전환 후 이전 버전을 60초 유지 → 드레인·즉시 되돌리기 여유 (ADR-58)
+      abortScaleDownDelaySeconds: 30      # 분석 실패(abort) 때 preview 축소까지 — 원인 확인용 로그를 볼 시간
       prePromotionAnalysis:
         templates:
           - templateName: gateway-prepromotion     # analysis/

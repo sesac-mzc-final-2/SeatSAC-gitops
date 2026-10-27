@@ -1,5 +1,17 @@
+# 블루/그린 분석 (3.1.6). base/common(cinema-common 앱)이 가져다 쓴다 → namespace cinema-staging
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - booking-prepromotion.yaml
   - gateway-prepromotion.yaml
+# 분석 Job이 마운트하는 k6 스크립트. AnalysisTemplate(CRD) 안의 이름 참조는 kustomize가 해시를 따라 바꾸지 못하므로 해시를 붙이지 않는다
+configMapGenerator:
+  - name: rollout-smoke-scripts
+    files:
+      - smoke/booking-smoke.js
+      - smoke/gateway-smoke.js
+    options:
+      disableNameSuffixHash: true
+      labels:
+        app.kubernetes.io/name: rollout-smoke
+        app.kubernetes.io/part-of: cinema

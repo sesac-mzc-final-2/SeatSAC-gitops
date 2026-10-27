@@ -45,6 +45,14 @@ jobs:
         run: |
           if grep -rIl --include='*.yaml' -E '^kind:\s*Secret\b' . ; then
             echo "::error::Secret 매니페스트는 gitops에 두지 않는다 (Terraform이 생성)"; exit 1; fi
+      - name: 블루/그린 분석 회차 ID (숫자)
+        run: |
+          # 틀린 회차면 분석 Job이 404로 실패 → 모든 booking 배포가 abort된다 (SeatSAC 런북 6-D-0으로 고른다)
+          id=$(grep -oE 'name: SMOKE_SCREENING_ID, value: "[^"]*"' analysis/booking-prepromotion.yaml | sed -E 's/.*value: "([^"]*)"/\1/')
+          if ! [[ "$id" =~ ^[0-9]+$ ]]; then
+            echo "::error file=analysis/booking-prepromotion.yaml::SMOKE_SCREENING_ID가 숫자가 아니다('$id') — 시드의 실제 회차 ID를 넣는다"; exit 1
+          fi
+          echo "SMOKE_SCREENING_ID=$id"
       - name: Public 레포 금지 값 (계정 ID·AWS 엔드포인트·레지스트리)
         run: |
           # 모든 파일(문서 포함)에서 12자리 숫자(계정 ID), AWS 서비스 도메인(RDS·Valkey·SQS·Cognito·ECR 주소), images의 newName을 찾는다

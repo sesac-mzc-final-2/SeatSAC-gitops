@@ -1,14 +1,81 @@
-# booking 블루/그린 분석: 5xx ≤ 1% 그리고 결제 timeout·error ≤ 5% (declined 제외) — 1분 × 3회
-# ⚠️ gateway와 같은 트래픽 전제(3.1.6)
+# booking 블루/그린 분석 (3.1.6, OPS-03·04). Rollout prePromotionAnalysis가 preview 파드를 대상으로 돌린다
+#   판정(2분 지연 뒤 1분 × 3회, 약 5분): preview 요청 ≥ 20건/분 · 5xx ≤ 1% · 결제 timeout·error ≤ 5%
+#   하나라도 실패 → AnalysisRun Failed → Rollout abort: active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백),
+#   preview는 abortScaleDownDelaySeconds 뒤 축소. gitops 태그는 새 버전에 남으므로 revert PR로 맞춘다(SeatSAC 런북 6-D)
+#   preview·active 구분: PodMonitor가 붙이는 rollouts_pod_template_hash (Rollout이 preview 해시를 인자로 넘긴다)
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
   name: booking-prepromotion
+  labels:
+    app.kubernetes.io/name: booking
+    app.kubernetes.io/part-of: cinema
 spec:
   args:
     - name: preview-hash
   metrics:
+    # ① preview로 트래픽 — 이 Job이 없으면 preview 요청이 0이라 비율 판정이 의미가 없다(요청 0 = 0%로 통과하던 문제)
+    #    Job 실패 = 조회가 기대한 상태(200)로 답하지 않음(k6 checks < 95% → 종료 코드 99) → 분석 실패.
+    #    404처럼 5xx가 아닌 고장(경로·라우트 깨짐)을 잡는다. 5xx 비율·결제 판정은 아래 Prometheus 지표가 한다
+    - name: preview-traffic
+      provider:
+        job:
+          metadata:
+            labels:
+              app.kubernetes.io/name: rollout-smoke     # NetworkPolicy가 이 라벨로 preview 접근을 허용한다
+              app.kubernetes.io/part-of: cinema
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 480   # 이미지 pull + 4분 30초 + 여유
+            template:
+              metadata:
+                labels:
+                  app.kubernetes.io/name: rollout-smoke
+                  app.kubernetes.io/part-of: cinema
+              spec:
+                restartPolicy: Never
+                automountServiceAccountToken: false
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 12345
+                  runAsGroup: 12345
+                containers:
+                  - name: k6
+                    image: grafana/k6:1.7.1          # 버전 고정. 올릴 때 PR (tests/k6와 같은 메이저)
+                    args: ["run", "--quiet", "/scripts/booking-smoke.js"]
+                    env:
+                      - { name: TARGET_URL, value: "http://booking-preview:8080" }
+                      - { name: DURATION, value: "4m30s" }   # 아래 지표 3회(2분 지연 + 1분 × 3 = 2·3·4분)를 덮는다
+                      - { name: SMOKE_SCREENING_ID, value: "2658" }   # 시드에 있는 실제 회차(좌석 있는 상영관). SeatSAC 런북 6-D-0으로 고른다. 틀리면 404 → 모든 booking 배포 abort. 숫자가 아니면 gitops-validate가 막는다
+                    resources:
+                      requests: { cpu: 50m, memory: 64Mi }
+                      limits: { memory: 128Mi }
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities: { drop: ["ALL"] }
+                    volumeMounts:
+                      - { name: scripts, mountPath: /scripts, readOnly: true }
+                      - { name: tmp, mountPath: /tmp }
+                volumes:
+                  - name: scripts
+                    configMap: { name: rollout-smoke-scripts }    # analysis/kustomization.yaml (해시 없음)
+                  - { name: tmp, emptyDir: {} }
+    # ② 최소 요청 20건/분 — 트래픽이 안 들어갔으면(Job 실패·NetworkPolicy) 통과가 아니라 실패. actuator(프로브)는 세지 않는다
+    - name: preview-requests
+      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      interval: 1m
+      count: 3
+      failureLimit: 0   # 세 측정 모두 ≥ 20건. 늦게 뜬 Job은 initialDelay 2m로 흡수한다(failureLimit 1은 '아무 측정 1회'를 봐줘서 마지막 측정이 0건이어도 통과됨)
+      successCondition: result[0] >= 20
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          query: |
+            sum(increase(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) or vector(0)
+    # ③ 5xx ≤ 1% (런타임 계약 5장)
     - name: http-5xx-ratio
+      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
       interval: 1m
       count: 3
       failureLimit: 0
@@ -17,10 +84,13 @@ spec:
         prometheus:
           address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
           query: |
-            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",status=~"5.."}[1m])) or vector(0))
+            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*",status=~"5.."}[1m])) or vector(0))
             /
-            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}"}[1m])) > 0 or vector(1))
+            (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) > 0 or vector(1))
+    # ④ 결제 호출 timeout·error ≤ 5% (declined는 정상 업무 결과라 제외, 런타임 계약 5장)
+    #    결제 호출이 0건이면 0%로 통과한다 — 분석 트래픽에 결제 경로가 들어가면(BKG-10 #37 이후) 최소 건수도 건다
     - name: payment-failure-ratio
+      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
       interval: 1m
       count: 3
       failureLimit: 0

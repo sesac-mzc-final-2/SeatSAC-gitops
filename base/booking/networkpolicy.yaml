@@ -20,6 +20,9 @@ spec:
     - from:
         - podSelector: { matchLabels: { app.kubernetes.io/name: user } }
       ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # 블루/그린 분석 트래픽 Job (analysis/, 3.1.6) → booking-preview
+        - podSelector: { matchLabels: { app.kubernetes.io/name: rollout-smoke } }
+      ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # Prometheus 수집
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
       ports: [{ port: 8080, protocol: TCP }]

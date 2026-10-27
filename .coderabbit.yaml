@@ -79,7 +79,7 @@ reviews:
 
     - path: "base/**/networkpolicy.yaml"
       instructions: >
-        인바운드 허용은 런타임 계약 6장 표만: ALB(VPC CIDR)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, monitoring→전체(8080).
+        인바운드 허용은 런타임 계약 6장 표만: ALB(VPC CIDR)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, rollout-smoke(분석 Job)→booking·gateway, monitoring→전체(8080).
         표에 없는 허용, namespaceSelector 전체 허용, egress 제한 추가는 지적한다.
 
     - path: "base/**/podmonitor.yaml"
@@ -91,7 +91,9 @@ reviews:
       instructions: >
         블루/그린 분석 조건(런타임 계약 5장): booking은 5xx 비율 ≤ 1% 그리고 booking_payment_call_total의 timeout·error 비율 ≤ 5%(declined 제외),
         gateway는 5xx 비율 ≤ 1%. 1분 간격 3회, preview 파드(rollouts-pod-template-hash)만. 임계값·메트릭 이름이 바뀌면 지적한다.
-        요청이 0건일 때 0으로 나눠 통과하거나 실패하는 쿼리인지 본다.
+        요청이 0건일 때 0으로 나눠 통과하거나 실패하는 쿼리인지 본다. preview-requests(최소 20건/분)가 빠지면 지적한다(트래픽 0 = 통과가 되어 자동 롤백이 무력해짐).
+        http_server_requests 쿼리에 uri!~"/actuator.*"가 빠지면 지적한다(probe 요청이 분모에 섞임).
+        분석 Job(preview-traffic)은 데이터를 바꾸지 않는 조회만, 토큰·Secret 없이, 이미지 버전 고정, 파드 라벨 app.kubernetes.io/name=rollout-smoke(NetworkPolicy)여야 한다.
 
     - path: "apps/**"
       instructions: >
