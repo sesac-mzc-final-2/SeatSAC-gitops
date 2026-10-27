@@ -46,7 +46,7 @@ spec:
                     env:
                       - { name: TARGET_URL, value: "http://booking-preview:8080" }
                       - { name: DURATION, value: "4m30s" }   # 아래 지표 3회(2분 지연 + 1분 × 3 = 2·3·4분)를 덮는다
-                      - { name: SMOKE_SCREENING_ID, value: "CHANGE_ME" }   # 시드에 있는 실제 회차(좌석 있는 상영관). SeatSAC 런북 6-D-0으로 고른다. 틀리면 404 → 모든 booking 배포 abort. 숫자가 아니면 gitops-validate가 막는다
+                      - { name: SMOKE_SCREENING_ID, value: "2658" }   # 시드에 있는 실제 회차(좌석 있는 상영관). SeatSAC 런북 6-D-0으로 고른다. 틀리면 404 → 모든 booking 배포 abort. 숫자가 아니면 gitops-validate가 막는다
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
                       limits: { memory: 128Mi }
