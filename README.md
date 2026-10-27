@@ -33,13 +33,17 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 
 | 서비스 | 배포 | replicas / HPA | requests cpu·mem / limit mem | 인바운드 허용 |
 | --- | --- | --- | --- | --- |
-| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(VPC CIDR) · 분석 Job |
+| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(public 서브넷 2개) · 분석 Job |
 | booking | Rollout 블루/그린 | 1 / 1~4 | 250m·512Mi / 768Mi | gateway·catalog·user · 분석 Job |
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
 | payment | Deployment 롤링 | 1 / 없음 | 150m·384Mi / 576Mi | booking |
 
-모든 서비스: monitoring namespace → 8080 허용, egress 제한 없음.
+모든 서비스: monitoring namespace → 8080 허용, egress 제한 없음. 그 밖은 `base/common/default-deny-ingress.yaml`이 막는다(3.1.13).
+
+- NetworkPolicy는 L4(포트)까지만 본다 → 허용된 호출자는 `/internal/**`도 부를 수 있다. 외부에서 `/api/internal/**`는 gateway 라우트가 404로 막는다(규약 1장)
+- kubelet 프로브·`kubectl port-forward`·`kubectl exec`는 NetworkPolicy 대상이 아니다(노드·파드 네임스페이스 안에서 들어옴)
+- 확인: SeatSAC `infra/scripts/np-check.sh`(런북 6-E) — 허용·차단 표를 실제 연결로 확인한다
 
 ## sync 순서
 
