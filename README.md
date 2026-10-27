@@ -27,14 +27,14 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 ├── overlays/staging/{svc}/        staging 값: ConfigMap {svc}-config (엔드포인트는 ${키}만)
 │   └── image-tag/                 이미지 태그(newTag)만 — build-push가 커밋
 ├── components/rollout/            kustomize가 Rollout 안의 ConfigMap 해시 이름을 바꾸게 하는 설정
-├── analysis/                      블루/그린 AnalysisTemplate (booking · gateway)
+├── analysis/                      블루/그린 AnalysisTemplate (booking · gateway) + smoke/ 분석 트래픽 k6 스크립트
 └── .github/                       CODEOWNERS · PR 템플릿 · gitops-validate
 ```
 
 | 서비스 | 배포 | replicas / HPA | requests cpu·mem / limit mem | 인바운드 허용 |
 | --- | --- | --- | --- | --- |
-| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(VPC CIDR) |
-| booking | Rollout 블루/그린 | 1 / 1~4 | 250m·512Mi / 768Mi | gateway·catalog·user |
+| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(VPC CIDR) · 분석 Job |
+| booking | Rollout 블루/그린 | 1 / 1~4 | 250m·512Mi / 768Mi | gateway·catalog·user · 분석 Job |
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
 | payment | Deployment 롤링 | 1 / 없음 | 150m·384Mi / 576Mi | booking |
@@ -96,9 +96,26 @@ sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR
 - 새 엔드포인트가 필요하면 SeatSAC `docs/service-runtime-contract.md` 3장 표와 `infra_endpoints.tf`에 먼저 키를 추가하고, 여기에는 `${키}`만 쓴다
 - 로그·PR에 이미지 주소를 붙일 때 계정 ID는 `<ACCOUNT_ID>`로 가린다
 
+## 블루/그린 분석 (3.1.6)
+
+booking·gateway는 새 버전을 preview로 띄운 뒤 `analysis/{svc}-prepromotion`이 통과해야 active로 전환한다(`autoPromotionEnabled: true`).
+
+| 지표 | 조건 (preview 파드, `initialDelay` 1분 뒤 1분 × 3회) | 대상 |
+| --- | --- | --- |
+| `preview-traffic` | 분석 트래픽 Job(k6 `grafana/k6:1.7.1`, 3분 30초)이 끝까지 돈다 | 둘 다 |
+| `preview-requests` | actuator 제외 요청 **≥ 20건/분** — 트래픽이 안 들어갔으면 통과가 아니라 실패 | 둘 다 |
+| `http-5xx-ratio` | actuator 제외 5xx **≤ 1%** | 둘 다 |
+| `payment-failure-ratio` | `booking_payment_call_total` timeout·error **≤ 5%** (declined 제외) | booking |
+
+- **트래픽**: 실제 사용자 트래픽은 active로만 가서 preview에는 요청이 없다(probe만). 그래서 분석 Job이 `{svc}-preview:8080`으로 **데이터를 바꾸지 않는 조회**를 직접 보낸다(스크립트 `analysis/smoke/`, ConfigMap `rollout-smoke-scripts`). Job 파드 라벨 `app.kubernetes.io/name: rollout-smoke` → NetworkPolicy가 booking·gateway 접근을 허용
+  - booking: `GET /screenings/{id}/seats`(Valkey·RDS·catalog) · `GET /internal/screenings/seat-counts`(RDS). 결제 경로(선점→결제→취소)는 BKG-10(SeatSAC #37) 머지 후 추가 → 그때 결제 호출 최소 건수도 건다
+  - gateway: `GET /api/movies` · `GET /api/theaters`(→ catalog). 토큰은 쓰지 않는다
+- **실패하면**: AnalysisRun Failed → Rollout **abort** → active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백), preview는 30초 뒤 축소. preview가 10분 안에 Ready가 안 돼도 abort(`progressDeadlineAbort`). gitops 태그는 새 버전에 남아 있으므로 **태그 커밋 revert PR**로 맞춘다
+- **파드 수**: 분석 중 preview는 1개(`previewReplicaCount: 1`), 전환 직전 active 수까지 늘린 뒤 전환 → 전환 순간~60초만 2배. 노드 2대라 booking HPA가 최대(4)일 때 배포하면 preview가 Pending될 수 있다(그러면 10분 뒤 abort)
+- **상태 보기**: `kubectl argo rollouts get rollout booking -n cinema-staging --watch` (플러그인), `kubectl -n cinema-staging get analysisrun`
+
 ## 열린 항목
 
-- 블루/그린 분석은 preview 파드로 들어오는 요청이 있어야 의미가 있다. 요청이 0이면 0%로 통과한다. 분석 중 preview로 트래픽을 보내는 방법은 3.1.6에서 정한다
 - gateway Application은 Cognito(3.3.x) 적용 후 Terraform `cognito_enabled = true`로 생긴다(SeatSAC 런북 6-C). 그 전에는 ALB·CloudFront `/api`가 없다
 
 ## 로컬 확인
