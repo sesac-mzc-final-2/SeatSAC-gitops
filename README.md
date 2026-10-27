@@ -100,15 +100,15 @@ sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR
 
 booking·gateway는 새 버전을 preview로 띄운 뒤 `analysis/{svc}-prepromotion`이 통과해야 active로 전환한다(`autoPromotionEnabled: true`).
 
-| 지표 | 조건 (preview 파드, `initialDelay` 1분 뒤 1분 × 3회) | 대상 |
+| 지표 | 조건 (preview 파드, `initialDelay` 2분 뒤 1분 × 3회 ≈ 5분) | 대상 |
 | --- | --- | --- |
-| `preview-traffic` | 분석 트래픽 Job(k6 `grafana/k6:1.7.1`, 3분 30초)이 끝까지 돈다 | 둘 다 |
-| `preview-requests` | actuator 제외 요청 **≥ 20건/분** — 트래픽이 안 들어갔으면 통과가 아니라 실패 | 둘 다 |
+| `preview-traffic` | 분석 트래픽 Job(k6 `grafana/k6:1.7.1`, 4분 30초)이 끝까지 돌고 조회 응답 200이 95% 이상 (404 같은 5xx 아닌 고장도 잡음) | 둘 다 |
+| `preview-requests` | actuator 제외 요청 **≥ 20건/분** — 트래픽이 안 들어갔으면 통과가 아니라 실패(첫 측정 1회는 봐줌, `failureLimit: 1`) | 둘 다 |
 | `http-5xx-ratio` | actuator 제외 5xx **≤ 1%** | 둘 다 |
 | `payment-failure-ratio` | `booking_payment_call_total` timeout·error **≤ 5%** (declined 제외) | booking |
 
 - **트래픽**: 실제 사용자 트래픽은 active로만 가서 preview에는 요청이 없다(probe만). 그래서 분석 Job이 `{svc}-preview:8080`으로 **데이터를 바꾸지 않는 조회**를 직접 보낸다(스크립트 `analysis/smoke/`, ConfigMap `rollout-smoke-scripts`). Job 파드 라벨 `app.kubernetes.io/name: rollout-smoke` → NetworkPolicy가 booking·gateway 접근을 허용
-  - booking: `GET /screenings/{id}/seats`(Valkey·RDS·catalog) · `GET /internal/screenings/seat-counts`(RDS). 결제 경로(선점→결제→취소)는 BKG-10(SeatSAC #37) 머지 후 추가 → 그때 결제 호출 최소 건수도 건다
+  - booking: `GET /screenings/{id}/seats`(catalog·Valkey·RDS — **시드에 있는 실제 회차** `SMOKE_SCREENING_ID`) · `GET /internal/screenings/seat-counts`(RDS). 결제 경로(선점→결제→취소)는 BKG-10(SeatSAC #37) 머지 후 추가 → 그때 결제 호출 최소 건수도 건다
   - gateway: `GET /api/movies` · `GET /api/theaters`(→ catalog). 토큰은 쓰지 않는다
 - **실패하면**: AnalysisRun Failed → Rollout **abort** → active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백), preview는 30초 뒤 축소. preview가 10분 안에 Ready가 안 돼도 abort(`progressDeadlineAbort`). gitops 태그는 새 버전에 남아 있으므로 **태그 커밋 revert PR**로 맞춘다
 - **파드 수**: 분석 중 preview는 1개(`previewReplicaCount: 1`), 전환 직전 active 수까지 늘린 뒤 전환 → 전환 순간~60초만 2배. 노드 2대라 booking HPA가 최대(4)일 때 배포하면 preview가 Pending될 수 있다(그러면 10분 뒤 abort)
