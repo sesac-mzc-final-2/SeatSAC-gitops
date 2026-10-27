@@ -1,4 +1,4 @@
-# gateway 인바운드 허용 (docs/service-runtime-contract.md 6장, 3.1.13). egress는 막지 않는다
+# gateway 인바운드 허용 (docs/service-runtime-contract.md 6장, 3.1.13): ALB(public 서브넷) · 분석 Job · Prometheus. egress는 막지 않는다
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -11,8 +11,11 @@ spec:
     matchLabels: { app.kubernetes.io/name: gateway }
   policyTypes: [Ingress]
   ingress:
-    - from:                                   # ALB(target-type ip) — VPC CIDR
-        - ipBlock: { cidr: 10.20.0.0/16 }
+    - from:                                   # ALB(target-type ip, internet-facing) — public 서브넷 2개에만 ALB ENI가 있다
+        # VPC CIDR(10.20.0.0/16) 전체를 열면 VPC CNI라 같은 VPC의 모든 파드(app 서브넷)도 gateway에 붙을 수 있었다 (3.1.13에서 좁힘)
+        # 값은 SeatSAC envs/staging staging.tfvars public_subnets와 같아야 한다(사설 대역이라 Public 레포에 두어도 된다)
+        - ipBlock: { cidr: 10.20.0.0/24 }
+        - ipBlock: { cidr: 10.20.1.0/24 }
       ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # 블루/그린 분석 트래픽 Job (analysis/, 3.1.6) → gateway-preview
         - podSelector: { matchLabels: { app.kubernetes.io/name: rollout-smoke } }

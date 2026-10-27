@@ -79,7 +79,7 @@ reviews:
 
     - path: "base/**/networkpolicy.yaml"
       instructions: >
-        인바운드 허용은 런타임 계약 6장 표만: ALB(VPC CIDR)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, rollout-smoke(분석 Job)→booking·gateway, monitoring→전체(8080).
+        인바운드 허용은 런타임 계약 6장 표만: ALB(public 서브넷 CIDR 2개만, VPC CIDR 전체 금지)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, rollout-smoke(분석 Job)→booking·gateway, monitoring→전체(8080).
         표에 없는 허용, namespaceSelector 전체 허용, egress 제한 추가는 지적한다.
 
     - path: "base/**/podmonitor.yaml"
