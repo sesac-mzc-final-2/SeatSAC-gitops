@@ -94,6 +94,7 @@ sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR
 | RDS·Valkey 주소 | `${DB_HOST}` · `${VALKEY_HOST}` | ConfigMap `cinema-infra-endpoints` (Terraform `envs/staging-k8s/infra_endpoints.tf`) | 파드 envFrom → Spring이 기동 때 치환. Flyway Job은 `$(DB_HOST)` |
 | SQS 큐 URL | `${SQS_NOTIFICATION_URL}` | 위와 같음 | booking |
 | Cognito issuer·client ID | `${COGNITO_ISSUER_URI}` · `${COGNITO_CLIENT_ID}` | 위와 같음 (Cognito 전에는 빈 값) | gateway |
+| AWS 권한(booking → SQS) | ServiceAccount `booking`(`base/booking/serviceaccount.yaml`)만 — 역할 ARN·어노테이션 없음 | Pod Identity 연결 `cinema-staging-booking-pod` (Terraform `envs/staging/sqs.tf`, 3.1.9) | booking 파드 (웹훅이 자격 증명 주입) |
 | DB 비밀번호 | Secret 이름만 | `{svc}-secrets`·`{svc}-migrator-secrets` (Terraform) | envFrom |
 | 차트 `targetRevision` | 정확한 버전 (위 표) | `helm search repo`로 확인해 PR (비밀 아님) | 이 레포 |
 
