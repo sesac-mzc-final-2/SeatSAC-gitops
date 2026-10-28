@@ -39,6 +39,7 @@ spec:
         app.kubernetes.io/part-of: cinema
     spec:
       terminationGracePeriodSeconds: 35
+      serviceAccountName: booking           # Pod Identity → 알림 큐 발행 권한 (3.1.9, serviceaccount.yaml)
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
