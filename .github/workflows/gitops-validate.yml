@@ -53,6 +53,12 @@ jobs:
             echo "::error file=analysis/booking-prepromotion.yaml::SMOKE_SCREENING_ID가 숫자가 아니다('$id') — 시드의 실제 회차 ID를 넣는다"; exit 1
           fi
           echo "SMOKE_SCREENING_ID=$id"
+          # 결제 갈래는 선택이다 — 비어 있으면 끔, 넣었으면 숫자여야 한다
+          pay=$(grep -oE 'name: SMOKE_PAY_SCREENING_ID, value: "[^"]*"' analysis/booking-prepromotion.yaml | sed -E 's/.*value: "([^"]*)"/\1/')
+          if [ -n "$pay" ] && ! [[ "$pay" =~ ^[0-9]+$ ]]; then
+            echo "::error file=analysis/booking-prepromotion.yaml::SMOKE_PAY_SCREENING_ID가 숫자가 아니다('$pay') — 비워 두면 결제 갈래를 돌지 않는다"; exit 1
+          fi
+          echo "SMOKE_PAY_SCREENING_ID=${pay:-(꺼짐)}"
       - name: Public 레포 금지 값 (계정 ID·AWS 엔드포인트·레지스트리)
         run: |
           # 모든 파일(문서 포함)에서 12자리 숫자(계정 ID), AWS 서비스 도메인(RDS·Valkey·SQS·Cognito·ECR 주소), images의 newName을 찾는다
