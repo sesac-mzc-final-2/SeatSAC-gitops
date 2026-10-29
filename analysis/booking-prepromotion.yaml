@@ -47,6 +47,12 @@ spec:
                       - { name: TARGET_URL, value: "http://booking-preview:8080" }
                       - { name: DURATION, value: "4m30s" }   # 아래 지표 3회(2분 지연 + 1분 × 3 = 2·3·4분)를 덮는다
                       - { name: SMOKE_SCREENING_ID, value: "2658" }   # 시드에 있는 실제 회차(좌석 있는 상영관). SeatSAC 런북 6-D-0으로 고른다. 틀리면 404 → 모든 booking 배포 abort. 숫자가 아니면 gitops-validate가 막는다
+                      # 결제 경로(선점 → 거절 카드 결제). 비어 있으면 그 갈래를 돌지 않는다 — 조회만 보내던 동작 그대로다.
+                      # 켜는 조건: ① 시드 적재 완료 ② 「미래」 회차 ID(선점은 startsAt > now 만 된다, 런북 6-D-0)
+                      #   ③ 수동 분석 1회로 hold 201·pay 200(PAYMENT_FAILED) 확인. 아니면 모든 booking 배포가 abort된다
+                      # 켜면 payment-failure-ratio의 분모가 생긴다 — 지금은 결제 호출 0건이라 그 조건이 항상 통과한다
+                      - { name: SMOKE_PAY_SCREENING_ID, value: "" }
+                      - { name: SMOKE_PAY_EVERY, value: "3" }        # 3주기(≈3초)마다 1건 → 4분 30초에 약 30건
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
                       limits: { memory: 128Mi }
@@ -88,7 +94,8 @@ spec:
             /
             (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) > 0 or vector(1))
     # ④ 결제 호출 timeout·error ≤ 5% (declined는 정상 업무 결과라 제외, 런타임 계약 5장)
-    #    결제 호출이 0건이면 0%로 통과한다 — 분석 트래픽에 결제 경로가 들어가면(BKG-10 #37 이후) 최소 건수도 건다
+    #    결제 호출이 0건이면 0%로 통과한다. SMOKE_PAY_SCREENING_ID를 넣으면 분모가 생겨(약 30건/분석) 실제로 판정된다 —
+    #    최소 건수까지 걸려면 payment-calls 지표를 하나 더 두면 되는데, 분모가 안정적으로 쌓이는지 먼저 보고 정한다
     - name: payment-failure-ratio
       initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
       interval: 1m
