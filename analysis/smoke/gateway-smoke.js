@@ -11,21 +11,22 @@ const PARAMS = { timeout: "5s" };
 
 export const options = {
   vus: 1,
-  duration: __ENV.DURATION || "5m30s",
-  setupTimeout: "200s",   // 아래 setup()의 Ready 대기 (본 요청 시간 duration과 별도)
+  duration: __ENV.DURATION || "6m",
+  setupTimeout: "180s",   // 아래 setup()의 Ready 대기 150초 + 여유 (본 요청 시간 duration과 별도)
   summaryTrendStats: ["avg", "p(95)"],
   thresholds: { checks: ["rate>=0.95"] },   // 95% 미만이면 종료 코드 99 → 분석 실패
 };
 
-// 분석은 preview 확장과 동시에 시작한다(Ready 전) → preview가 Ready가 될 때까지 기다린 뒤 본 요청을 보낸다.
-// 기다리는 동안의 connection refused가 checks(95%)를 깎지 않게 하려는 것. actuator 요청은 preview-requests 지표에서 빠진다
 export function setup() {
-  for (let i = 0; i < 90; i++) {   // 2초 × 90 = 최대 180초 (startupProbe 최대 150초 + 여유)
+  // 횟수가 아니라 시간으로 센다(요청이 timeout까지 걸리면 횟수 기준은 길어진다).
+  // 150초 = startupProbe 최대(5초 × 30). AnalysisTemplate initialDelay 4m이 이 값을 전제로 한다
+  const deadline = Date.now() + 150 * 1000;
+  while (Date.now() < deadline) {
     const r = http.get(`${BASE}/actuator/health/readiness`, { timeout: "2s", tags: { name: "wait-ready" } });
     if (r.status === 200) return;
     sleep(2);
   }
-  throw new Error("preview가 180초 안에 Ready가 되지 않았다");
+  throw new Error("preview가 150초 안에 Ready가 되지 않았다");
 }
 
 export default function () {
