@@ -10,7 +10,7 @@ spec:
   replicas: 1
   revisionHistoryLimit: 3
   # preview가 이 시간 안에 Ready가 되지 않으면(기동 실패·CrashLoop·이미지 없음) abort → active 유지 (3.1.6)
-  #   startupProbe 최대 150초 + 이미지 pull·Flyway 여유. 분석(약 4분)은 이 시간에 포함되지 않는다
+  #   startupProbe 최대 150초 + 이미지 pull·Flyway 여유. 분석(약 6분)은 이 시간에 포함되지 않는다
   progressDeadlineSeconds: 600
   progressDeadlineAbort: true
   selector:

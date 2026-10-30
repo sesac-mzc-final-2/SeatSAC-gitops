@@ -1,5 +1,5 @@
 # booking 블루/그린 분석 (3.1.6, OPS-03·04). Rollout prePromotionAnalysis가 preview 파드를 대상으로 돌린다
-#   판정(2분 지연 뒤 1분 × 3회, 약 5분): preview 요청 ≥ 20건/분 · 5xx ≤ 1% · 결제 timeout·error ≤ 5%
+#   판정(3분 지연 뒤 1분 × 3회, 약 6분): preview 요청 ≥ 20건/분 · 5xx ≤ 1% · 결제 timeout·error ≤ 5%
 #   하나라도 실패 → AnalysisRun Failed → Rollout abort: active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백),
 #   preview는 abortScaleDownDelaySeconds 뒤 축소. gitops 태그는 새 버전에 남으므로 revert PR로 맞춘다(SeatSAC 런북 6-D)
 #   preview·active 구분: PodMonitor가 붙이는 rollouts_pod_template_hash (Rollout이 preview 해시를 인자로 넘긴다)
@@ -26,7 +26,7 @@ spec:
               app.kubernetes.io/part-of: cinema
           spec:
             backoffLimit: 0
-            activeDeadlineSeconds: 480   # 이미지 pull + 4분 30초 + 여유
+            activeDeadlineSeconds: 600   # 이미지 pull + preview Ready 대기(최대 3분, setup) + 5분 30초 + 여유
             template:
               metadata:
                 labels:
@@ -45,7 +45,7 @@ spec:
                     args: ["run", "--quiet", "/scripts/booking-smoke.js"]
                     env:
                       - { name: TARGET_URL, value: "http://booking-preview:8080" }
-                      - { name: DURATION, value: "4m30s" }   # 아래 지표 3회(2분 지연 + 1분 × 3 = 2·3·4분)를 덮는다
+                      - { name: DURATION, value: "5m30s" }   # 아래 지표 3회(3분 지연 + 1분 × 3 = 3·4·5분)를 덮는다
                       - { name: SMOKE_SCREENING_ID, value: "2658" }   # 시드에 있는 실제 회차(좌석 있는 상영관). SeatSAC 런북 6-D-0으로 고른다. 틀리면 404 → 모든 booking 배포 abort. 숫자가 아니면 gitops-validate가 막는다
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
@@ -63,10 +63,10 @@ spec:
                   - { name: tmp, emptyDir: {} }
     # ② 최소 요청 20건/분 — 트래픽이 안 들어갔으면(Job 실패·NetworkPolicy) 통과가 아니라 실패. actuator(프로브)는 세지 않는다
     - name: preview-requests
-      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      initialDelay: 3m        # 분석은 preview 확장과 동시에 시작한다(Ready 전) → preview 기동 + 새 파드 첫 연결 지연 + 첫 스크레이프 뒤부터
       interval: 1m
       count: 3
-      failureLimit: 0   # 세 측정 모두 ≥ 20건. 늦게 뜬 Job은 initialDelay 2m로 흡수한다(failureLimit 1은 '아무 측정 1회'를 봐줘서 마지막 측정이 0건이어도 통과됨)
+      failureLimit: 0   # 세 측정 모두 ≥ 20건. preview 기동·k6 시작 지연은 initialDelay 3m로 흡수한다(failureLimit 1은 '아무 측정 1회'를 봐줘서 마지막 측정이 0건이어도 통과됨)
       successCondition: result[0] >= 20
       provider:
         prometheus:
@@ -75,7 +75,7 @@ spec:
             sum(increase(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) or vector(0)
     # ③ 5xx ≤ 1% (런타임 계약 5장)
     - name: http-5xx-ratio
-      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      initialDelay: 3m        # 분석은 preview 확장과 동시에 시작한다(Ready 전) → preview 기동 + 새 파드 첫 연결 지연 + 첫 스크레이프 뒤부터
       interval: 1m
       count: 3
       failureLimit: 0
@@ -90,7 +90,7 @@ spec:
     # ④ 결제 호출 timeout·error ≤ 5% (declined는 정상 업무 결과라 제외, 런타임 계약 5장)
     #    결제 호출이 0건이면 0%로 통과한다 — 분석 트래픽에 결제 경로가 들어가면(BKG-10 #37 이후) 최소 건수도 건다
     - name: payment-failure-ratio
-      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      initialDelay: 3m        # 분석은 preview 확장과 동시에 시작한다(Ready 전) → preview 기동 + 새 파드 첫 연결 지연 + 첫 스크레이프 뒤부터
       interval: 1m
       count: 3
       failureLimit: 0

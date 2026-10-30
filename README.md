@@ -105,10 +105,10 @@ sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR
 
 booking·gateway는 새 버전을 preview로 띄운 뒤 `analysis/{svc}-prepromotion`이 통과해야 active로 전환한다(`autoPromotionEnabled: true`).
 
-| 지표 | 조건 (preview 파드, `initialDelay` 2분 뒤 1분 × 3회 ≈ 5분) | 대상 |
+| 지표 | 조건 (preview 파드, `initialDelay` 3분 뒤 1분 × 3회 ≈ 6분) | 대상 |
 | --- | --- | --- |
-| `preview-traffic` | 분석 트래픽 Job(k6 `grafana/k6:1.7.1`, 4분 30초)이 끝까지 돌고 조회 응답 200이 95% 이상 (404 같은 5xx 아닌 고장도 잡음) | 둘 다 |
-| `preview-requests` | actuator 제외 요청 **≥ 20건/분**, 세 측정 모두(`failureLimit: 0`) — 트래픽이 안 들어갔으면 통과가 아니라 실패. Job이 늦게 뜨는 것은 `initialDelay: 2m`로 흡수 | 둘 다 |
+| `preview-traffic` | 분석 트래픽 Job(k6 `grafana/k6:1.7.1`, preview Ready 대기 뒤 5분 30초, 요청 제한 5초)이 끝까지 돌고 조회 응답 200이 95% 이상 (404 같은 5xx 아닌 고장도 잡음) | 둘 다 |
+| `preview-requests` | actuator 제외 요청 **≥ 20건/분**, 세 측정 모두(`failureLimit: 0`) — 트래픽이 안 들어갔으면 통과가 아니라 실패. 분석은 preview 확장과 동시에(Ready 전) 시작하므로 preview 기동·k6 시작 지연은 `initialDelay: 3m`로 흡수 | 둘 다 |
 | `http-5xx-ratio` | actuator 제외 5xx **≤ 1%** | 둘 다 |
 | `payment-failure-ratio` | `booking_payment_call_total` timeout·error **≤ 5%** (declined 제외) | booking |
 
