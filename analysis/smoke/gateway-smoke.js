@@ -6,18 +6,33 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 
 const BASE = __ENV.TARGET_URL || "http://gateway-preview:8080";
+// 요청 제한 시간: 기본 60초면 preview가 막 Ready가 된 순간의 연결 하나가 VU 1개를 30초 넘게 붙잡아 그동안 요청이 0건이 된다
+const PARAMS = { timeout: "5s" };
 
 export const options = {
   vus: 1,
-  duration: __ENV.DURATION || "4m30s",
+  duration: __ENV.DURATION || "6m",
+  setupTimeout: "180s",   // 아래 setup()의 Ready 대기 150초 + 여유 (본 요청 시간 duration과 별도)
   summaryTrendStats: ["avg", "p(95)"],
   thresholds: { checks: ["rate>=0.95"] },   // 95% 미만이면 종료 코드 99 → 분석 실패
 };
 
+export function setup() {
+  // 횟수가 아니라 시간으로 센다(요청이 timeout까지 걸리면 횟수 기준은 길어진다).
+  // 150초 = startupProbe 최대(5초 × 30). AnalysisTemplate initialDelay 4m이 이 값을 전제로 한다
+  const deadline = Date.now() + 150 * 1000;
+  while (Date.now() < deadline) {
+    const r = http.get(`${BASE}/actuator/health/readiness`, { timeout: "2s", tags: { name: "wait-ready" } });
+    if (r.status === 200) return;
+    sleep(2);
+  }
+  throw new Error("preview가 150초 안에 Ready가 되지 않았다");
+}
+
 export default function () {
-  const movies = http.get(`${BASE}/api/movies?page=0&size=5`, { tags: { name: "movies" } });   // → catalog
+  const movies = http.get(`${BASE}/api/movies?page=0&size=5`, { ...PARAMS, tags: { name: "movies" } });   // → catalog
   check(movies, { "movies 200": (r) => r.status === 200 });
-  const theaters = http.get(`${BASE}/api/theaters`, { tags: { name: "theaters" } });           // → catalog
+  const theaters = http.get(`${BASE}/api/theaters`, { ...PARAMS, tags: { name: "theaters" } });           // → catalog
   check(theaters, { "theaters 200": (r) => r.status === 200 });
   sleep(1);
 }
