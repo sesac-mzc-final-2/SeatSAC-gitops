@@ -52,7 +52,7 @@ spec:
                       #   ③ 수동 분석 1회로 hold 201·pay 200(PAYMENT_FAILED) 확인. 아니면 모든 booking 배포가 abort된다
                       # 켜면 payment-failure-ratio의 분모가 생긴다 — 지금은 결제 호출 0건이라 그 조건이 항상 통과한다
                       - { name: SMOKE_PAY_SCREENING_ID, value: "" }
-                      - { name: SMOKE_PAY_EVERY, value: "3" }        # 3주기(≈3초)마다 1건 → 4분 30초에 약 30건
+                      - { name: SMOKE_PAY_EVERY, value: "3" }        # 3주기(≈3초)마다 1건 → 분당 약 20건, 6분에 최대 약 120건
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
                       limits: { memory: 128Mi }
@@ -94,7 +94,7 @@ spec:
             /
             (sum(rate(http_server_requests_seconds_count{application="booking",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) > 0 or vector(1))
     # ④ 결제 호출 timeout·error ≤ 5% (declined는 정상 업무 결과라 제외, 런타임 계약 5장)
-    #    결제 호출이 0건이면 0%로 통과한다. SMOKE_PAY_SCREENING_ID를 넣으면 분모가 생겨(약 30건/분석) 실제로 판정된다 —
+    #    결제 호출이 0건이면 0%로 통과한다. SMOKE_PAY_SCREENING_ID를 넣으면 분모가 생겨(측정 1분 창마다 약 20건) 실제로 판정된다 —
     #    최소 건수까지 걸려면 payment-calls 지표를 하나 더 두면 되는데, 분모가 안정적으로 쌓이는지 먼저 보고 정한다
     - name: payment-failure-ratio
       initialDelay: 4m        # 분석은 preview 확장과 동시에(Ready 전) 시작 → Ready 최대 150초(startupProbe 5초×30, k6 setup 대기와 같음) + k6 시작 + 첫 1분 창 전체 + 스크레이프 15초

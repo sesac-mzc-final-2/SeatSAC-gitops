@@ -12,6 +12,9 @@ import { check, sleep } from "k6";
 const BASE = __ENV.TARGET_URL || "http://booking-preview:8080";
 // 요청 제한 시간: 기본 60초면 preview가 막 Ready가 된 순간의 연결 하나가 VU 1개를 30초 넘게 붙잡아 그동안 요청이 0건이 된다
 const PARAMS = { timeout: "5s" };
+// 결제는 booking → payment(연결 1초·응답 3초, 타임아웃이면 같은 paymentId로 1회 재호출 → 조회)를 타서
+// payment가 느리기만 해도 5초를 넘을 수 있다. 그때 k6가 먼저 끊으면 booking 지표는 정상인데 Job만 실패한다
+const PAY_PARAMS = { timeout: "12s" };
 const SCREENING_ID = __ENV.SMOKE_SCREENING_ID;
 if (!SCREENING_ID) {
   throw new Error("SMOKE_SCREENING_ID가 없다 — 시드에 있는 실제 회차 ID를 AnalysisTemplate env로 넘긴다");
@@ -28,8 +31,8 @@ if (!SCREENING_ID) {
 //   SMOKE_PAY_SCREENING_ID 는 「시드에 있는 미래 회차」여야 한다(런북 6-D-0).
 // 비어 있으면 이 갈래를 아예 돌지 않는다 — 시드 적재·검증 전에는 켜지 않는다.
 const PAY_SCREENING_ID = __ENV.SMOKE_PAY_SCREENING_ID || "";
-// 몇 번째 주기마다 결제를 태울지. 1주기 ≈ 1초라 3이면 4분 30초에 약 30건 — 비율 분모로 충분하고
-// 남는 데이터(거절 결제 행)도 배포당 30건 수준이다
+// 몇 번째 주기마다 결제를 태울지. 1주기 ≈ 1초(sleep 1 + 요청)라 3이면 분당 약 20건, 6분에 최대 약 120건 —
+// 1분 창 비율의 분모로 충분하다. 남는 데이터는 거절 결제 행(payment_db)이 배포당 100건 안팎이다
 const PAY_EVERY = Number(__ENV.SMOKE_PAY_EVERY || "3");
 // Gateway를 지나지 않고 booking에 직접 보내므로 X-User-Id를 직접 넣는다(UUID가 아니면 401).
 // 분석 전용 가짜 사용자다 — Cognito 계정이 아니고 비밀도 아니다. 회차당 선점 1건 규칙 때문에 고정값을 쓴다.
@@ -84,6 +87,7 @@ const errorCode = (response) => {
 /** 선점을 풀어 다음 주기가 ACTIVE_HOLD_EXISTS로 막히지 않게 한다 */
 function releaseHold(bookingId) {
   http.del(`${BASE}/bookings/${bookingId}/hold`, null, {
+    ...PARAMS,
     headers: { ...userHeaders(), "Idempotency-Key": uuid() },
     tags: { name: "release" },
   });
@@ -91,7 +95,7 @@ function releaseHold(bookingId) {
 
 /** 첫 AVAILABLE 좌석 ID (없으면 null) */
 function firstAvailableSeat(screeningId) {
-  const response = http.get(`${BASE}/screenings/${screeningId}/seats`, { tags: { name: "pay-seats" } });
+  const response = http.get(`${BASE}/screenings/${screeningId}/seats`, { ...PARAMS, tags: { name: "pay-seats" } });
   if (!check(response, { "pay-seats 200": (r) => r.status === 200 })) return null;
   const parsed = body(response);
   const seats = parsed && Array.isArray(parsed.seats) ? parsed.seats : [];
@@ -108,6 +112,7 @@ function payPath() {
     `${BASE}/seats/hold`,
     JSON.stringify({ screeningId: Number(PAY_SCREENING_ID), seatIds: [seatId] }),
     {
+      ...PARAMS,
       headers: { ...userHeaders(), "Content-Type": "application/json", "Idempotency-Key": uuid() },
       tags: { name: "hold" },
     },
@@ -136,6 +141,7 @@ function payPath() {
 
   // 거절 카드 — booking → payment 왕복을 타고, 응답은 200 + PAYMENT_FAILED 여야 한다
   const pay = http.post(`${BASE}/bookings/${bookingId}/pay`, JSON.stringify({ method: "CARD", card: DECLINED_CARD }), {
+    ...PAY_PARAMS,
     headers: { ...userHeaders(), "Content-Type": "application/json", "Idempotency-Key": uuid() },
     tags: { name: "pay" },
   });
