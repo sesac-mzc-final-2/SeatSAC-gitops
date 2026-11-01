@@ -31,7 +31,9 @@ spec:
         args:
           - name: preview-hash
             valueFrom:
-              podTemplateHashValue: Preview
+              # Stable·Latest만 유효하다. 블루/그린 preview(새 ReplicaSet) 해시 = Latest. 다른 값이면 빈 문자열이 넘어가
+              # 분석 쿼리가 아무것도 고르지 못하고 or vector(0) → 요청 0건으로 매번 abort된다(10/30~11/1 실측)
+              podTemplateHashValue: Latest
   template:
     metadata:
       labels:
