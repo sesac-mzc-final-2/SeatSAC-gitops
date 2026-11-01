@@ -1,5 +1,5 @@
 # gateway 블루/그린 분석 (3.1.6, OPS-03·04). Rollout prePromotionAnalysis가 preview 파드를 대상으로 돌린다
-#   판정(2분 지연 뒤 1분 × 3회, 약 5분): preview 요청 ≥ 20건/분 · 5xx ≤ 1%
+#   판정(4분 지연 뒤 1분 × 3회 = 4·5·6분): preview 요청 ≥ 20건/분 · 5xx ≤ 1%
 #   하나라도 실패 → AnalysisRun Failed → Rollout abort: active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백),
 #   preview는 abortScaleDownDelaySeconds 뒤 축소. gitops 태그는 새 버전에 남으므로 revert PR로 맞춘다(SeatSAC 런북 6-D)
 #   preview·active 구분: PodMonitor가 붙이는 rollouts_pod_template_hash (Rollout이 preview 해시를 인자로 넘긴다)
@@ -26,7 +26,7 @@ spec:
               app.kubernetes.io/part-of: cinema
           spec:
             backoffLimit: 0
-            activeDeadlineSeconds: 480   # 이미지 pull + 4분 30초 + 여유
+            activeDeadlineSeconds: 660   # 이미지 pull + preview Ready 대기(최대 150초, setup) + 6분 + 여유
             template:
               metadata:
                 labels:
@@ -45,7 +45,7 @@ spec:
                     args: ["run", "--quiet", "/scripts/gateway-smoke.js"]
                     env:
                       - { name: TARGET_URL, value: "http://gateway-preview:8080" }
-                      - { name: DURATION, value: "4m30s" }   # 아래 지표 3회(2분 지연 + 1분 × 3 = 2·3·4분)를 덮는다
+                      - { name: DURATION, value: "6m" }   # Ready 직후 시작해도 마지막 측정(6분)까지 덮는다. Ready가 늦으면 그만큼 늦게 끝난다
                     resources:
                       requests: { cpu: 50m, memory: 64Mi }
                       limits: { memory: 128Mi }
@@ -62,10 +62,10 @@ spec:
                   - { name: tmp, emptyDir: {} }
     # ② 최소 요청 20건/분 — 트래픽이 안 들어갔으면(Job 실패·NetworkPolicy) 통과가 아니라 실패. actuator(프로브)는 세지 않는다
     - name: preview-requests
-      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      initialDelay: 4m        # 분석은 preview 확장과 동시에(Ready 전) 시작 → Ready 최대 150초(startupProbe 5초×30, k6 setup 대기와 같음) + k6 시작 + 첫 1분 창 전체 + 스크레이프 15초
       interval: 1m
       count: 3
-      failureLimit: 0   # 세 측정 모두 ≥ 20건. 늦게 뜬 Job은 initialDelay 2m로 흡수한다(failureLimit 1은 '아무 측정 1회'를 봐줘서 마지막 측정이 0건이어도 통과됨)
+      failureLimit: 0   # 세 측정 모두 ≥ 20건. preview 기동·k6 시작 지연은 initialDelay: 4m 로 흠수한다
       successCondition: result[0] >= 20
       provider:
         prometheus:
@@ -74,7 +74,7 @@ spec:
             sum(increase(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) or vector(0)
     # ③ 5xx ≤ 1% (런타임 계약 5장)
     - name: http-5xx-ratio
-      initialDelay: 2m        # Job 스케줄 + k6 이미지 pull(첫 배포는 1분 넘을 수 있음) + 첫 스크레이프(15초) 뒤부터
+      initialDelay: 4m        # 분석은 preview 확장과 동시에(Ready 전) 시작 → Ready 최대 150초(startupProbe 5초×30, k6 setup 대기와 같음) + k6 시작 + 첫 1분 창 전체 + 스크레이프 15초
       interval: 1m
       count: 3
       failureLimit: 0
