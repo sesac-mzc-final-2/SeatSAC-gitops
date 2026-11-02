@@ -14,7 +14,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 ```
 .
 ├── apps/                          ArgoCD Application (App of Apps)
-│   └── staging/                   project · 플랫폼 2 · cinema-common
+│   └── staging/                   project · 플랫폼 2 · cinema-common · cinema-observability
 │                                  (root 앱 cinema-root·서비스 Application 5개는 SeatSAC Terraform argocd_apps.tf)
 ├── platform/                      Helm 차트 values (차트 자체는 apps/staging에서 버전 고정)
 │   ├── argo-rollouts/
@@ -28,6 +28,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 │   └── image-tag/                 이미지 태그(newTag)만 — build-push가 커밋
 ├── components/rollout/            kustomize가 Rollout 안의 ConfigMap 해시 이름을 바꾸게 하는 설정
 ├── analysis/                      블루/그린 AnalysisTemplate (booking · gateway) + smoke/ 분석 트래픽 k6 스크립트
+├── observability/                 신호등 대시보드(Grafana JSON → ConfigMap) + 기록 규칙(PrometheusRule) + tests/ (3.1.7)
 └── .github/                       CODEOWNERS · PR 템플릿 · gitops-validate
 ```
 
@@ -55,6 +56,7 @@ cinema-root (apps/staging) — 앞 wave 앱이 Healthy가 된 뒤 다음 wave (A
   wave -20  AppProject cinema
   wave -10  argo-rollouts · kube-prometheus-stack (Rollout·PodMonitor CRD)
   wave  -5  cinema-common (기본 거부 NetworkPolicy · AnalysisTemplate)
+  wave  -4  cinema-observability (신호등 대시보드 · 기록 규칙 — PrometheusRule CRD 필요 → kube-prometheus-stack(-10) 다음)
 
 cinema-{svc} (root 밖, 동시에 시작 — CRD가 아직 없으면 재시도 10회·최대 약 20분으로 맞춘다)
   ConfigMap {svc}-config (wave -2) → Flyway Job (Sync 훅, wave -1) → Rollout/Deployment·Ingress (wave 0)
@@ -95,11 +97,27 @@ sync·재시작 같은 조작은 관리자만(admin). 막히면 이 레포에 PR
 | SQS 큐 URL | `${SQS_NOTIFICATION_URL}` | 위와 같음 | booking |
 | Cognito issuer·client ID | `${COGNITO_ISSUER_URI}` · `${COGNITO_CLIENT_ID}` | 위와 같음 (Cognito 전에는 빈 값) | gateway |
 | AWS 권한(booking → SQS) | ServiceAccount `booking`(`base/booking/serviceaccount.yaml`)만 — 역할 ARN·어노테이션 없음 | Pod Identity 연결 `cinema-staging-booking-pod` (Terraform `envs/staging/sqs.tf`, 3.1.9) | booking 파드 (웹훅이 자격 증명 주입) |
+| AWS 권한(Grafana → CloudWatch) | 데이터소스 `cloudwatch`(`platform/kube-prometheus-stack/values.yaml`)에 키·역할 없음 | Pod Identity 연결 `cinema-staging-grafana-pod` (Terraform `envs/staging/grafana.tf`, 3.1.7) | Grafana 파드 (ServiceAccount `kube-prometheus-stack-grafana`) |
 | DB 비밀번호 | Secret 이름만 | `{svc}-secrets`·`{svc}-migrator-secrets` (Terraform) | envFrom |
 | 차트 `targetRevision` | 정확한 버전 (위 표) | `helm search repo`로 확인해 PR (비밀 아님) | 이 레포 |
 
 - 새 엔드포인트가 필요하면 SeatSAC `docs/service-runtime-contract.md` 3장 표와 `infra_endpoints.tf`에 먼저 키를 추가하고, 여기에는 `${키}`만 쓴다
 - 로그·PR에 이미지 주소를 붙일 때 계정 ID는 `<ACCOUNT_ID>`로 가린다
+
+## 신호등 대시보드 (3.1.7, OPS-05)
+
+Grafana 대시보드 **SeatSAC 신호등**과 기록 규칙을 Application `cinema-observability`가 `observability/`에서 올린다(차트와 따로라서 JSON·규칙 오류가 Prometheus/Grafana sync를 막지 않는다).
+
+| 파일 | 내용 |
+| --- | --- |
+| `observability/prometheusrule.yaml` | 기록 규칙 `cinema:*` — 서비스 상태 = max(5xx 비율, p95 지연). 임계값이 여기 한 곳에 있다 (이름·임계값: SeatSAC 런타임 계약 5장) |
+| `observability/dashboards/seatsac-traffic-light.json` | 대시보드. kustomize `configMapGenerator`가 라벨 `grafana_dashboard=1` ConfigMap으로 만들고 Grafana 사이드카가 읽는다 |
+| `observability/tests/` | `check.py`: JSON·PromQL 문법·규칙 단위 테스트·쿼리 값 검증. `gitops-validate`가 PR마다 돌린다 |
+
+- **신호등 기준**: 5xx 주의 ≥ 1%(블루/그린 롤백 기준과 같음)·장애 ≥ 5%, p95 주의 ≥ 300ms·장애 ≥ 1s. 트래픽이 없으면 초록이 아니라 **회색(판단 불가)**
+- **고치는 법**: 화면의 편집은 저장되지 않는다(영속 저장소 없음). Grafana에서 고친 뒤 대시보드 설정 → JSON Model(또는 내보내기)을 `dashboards/*.json`에 넣어 PR. 임계값은 `prometheusrule.yaml`과 JSON의 임계값을 같이 맞춘다
+- **로컬 검사**: `python3 observability/tests/check.py` (promtool 또는 docker 필요, `pip install pyyaml`)
+- Valkey 메모리·Evictions·SQS DLQ 패널은 CloudWatch 데이터소스라 Pod Identity 연결이 있어야 데이터가 나온다(SeatSAC 런북 6-F)
 
 ## 블루/그린 분석 (3.1.6)
 

@@ -15,6 +15,18 @@ grafana:
   persistence: { enabled: false }
   resources:
     requests: { cpu: 50m, memory: 128Mi }
+  defaultDashboardsTimezone: Asia/Seoul
+  # CloudWatch 데이터소스 (3.1.7): Valkey 메모리·Evictions, SQS DLQ 패널용. 자격 증명은 키가 아니라 Pod Identity —
+  # SeatSAC Terraform envs/staging/grafana.tf 의 역할 cinema-staging-grafana-pod (ServiceAccount kube-prometheus-stack-grafana).
+  # 연결을 만든 뒤에 뜬 Grafana 파드만 자격 증명을 받는다 → 적용 순서는 SeatSAC 런북 6-F
+  additionalDataSources:
+    - name: CloudWatch
+      uid: cloudwatch            # 대시보드 JSON이 이 uid로 부른다
+      type: cloudwatch
+      access: proxy
+      jsonData:
+        authType: default        # SDK 기본 자격 증명 체인 (Pod Identity 환경변수)
+        defaultRegion: ap-northeast-2
 nodeExporter:
   enabled: true
 kubeStateMetrics:

@@ -1,0 +1,50 @@
+# 신호등 대시보드용 기록 규칙 (3.1.7, OPS-05). 이름·임계값은 SeatSAC docs/service-runtime-contract.md 5장 "대시보드 기록 규칙"
+# 서비스 상태 = max(5xx 상태, 지연 상태): 0 정상 · 1 주의 · 2 장애. 트래픽이 없으면 값이 없다(대시보드가 회색 "트래픽 없음"으로 표시)
+#   5xx 비율  주의 ≥ 1%(블루/그린 분석 롤백 기준과 같다) · 장애 ≥ 5%
+#   p95 지연  주의 ≥ 300ms(선점 p95 목표) · 장애 ≥ 1s
+# actuator(프로브·수집)는 세지 않고, SSE(…/stream)는 연결이 끝날 때 기록되어 p95를 왜곡하므로 지연에서 뺀다
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cinema-traffic-light
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cinema-traffic-light
+    app.kubernetes.io/part-of: cinema
+spec:
+  groups:
+    - name: cinema-traffic-light
+      interval: 30s
+      rules:
+        - record: cinema:http_requests:rate5m
+          expr: |
+            sum by (application) (rate(http_server_requests_seconds_count{namespace="cinema-staging",uri!~"/actuator.*"}[5m]))
+        - record: cinema:http_5xx_ratio:rate5m
+          # 5xx 시리즈가 아직 한 번도 없으면 분자가 비어 비율이 사라진다 → 전체 요청 × 0 으로 0%를 만든다
+          expr: |
+            (
+              (
+                sum by (application) (rate(http_server_requests_seconds_count{namespace="cinema-staging",status=~"5..",uri!~"/actuator.*"}[5m]))
+                or
+                sum by (application) (rate(http_server_requests_seconds_count{namespace="cinema-staging",uri!~"/actuator.*"}[5m])) * 0
+              )
+              /
+              sum by (application) (rate(http_server_requests_seconds_count{namespace="cinema-staging",uri!~"/actuator.*"}[5m]))
+            )
+            and on (application) (cinema:http_requests:rate5m > 0)
+        - record: cinema:http_p95_seconds:rate5m
+          expr: |
+            histogram_quantile(0.95,
+              sum by (application, le) (rate(http_server_requests_seconds_bucket{namespace="cinema-staging",uri!~"/actuator.*|.*/stream"}[5m]))
+            )
+            and on (application) (cinema:http_requests:rate5m > 0)
+        - record: cinema:http_5xx_state
+          expr: |
+            (cinema:http_5xx_ratio:rate5m >= bool 0.01) + (cinema:http_5xx_ratio:rate5m >= bool 0.05)
+        - record: cinema:http_latency_state
+          expr: |
+            (cinema:http_p95_seconds:rate5m >= bool 0.3) + (cinema:http_p95_seconds:rate5m >= bool 1)
+        - record: cinema:service_state
+          # 두 시리즈의 요소별 최댓값. 한쪽만 있어도 그 값이 남는다
+          expr: |
+            ((cinema:http_5xx_state > cinema:http_latency_state) or cinema:http_latency_state) or cinema:http_5xx_state
