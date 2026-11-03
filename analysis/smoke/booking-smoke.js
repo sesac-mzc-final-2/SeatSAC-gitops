@@ -8,6 +8,7 @@
 //   ② 결제 (SMOKE_PAY_SCREENING_ID가 있을 때만) — 선점 → 거절 카드 결제. 아래 「결제 갈래」 참고
 import http from "k6/http";
 import { check, sleep } from "k6";
+import exec from "k6/execution";
 
 const BASE = __ENV.TARGET_URL || "http://booking-preview:8080";
 // 요청 제한 시간: 기본 60초면 preview가 막 Ready가 된 순간의 연결 하나가 VU 1개를 30초 넘게 붙잡아 그동안 요청이 0건이 된다
@@ -139,10 +140,12 @@ function payPath() {
 
   const booking = body(hold);
   const bookingId = booking ? booking.bookingId : null;
-  // 본문은 있는데 bookingId가 빠진 경우(undefined)도 같이 잡는다 — 아니면 /bookings/undefined/pay를 부른다
+  // 본문은 있는데 bookingId가 빠진 경우(undefined)도 같이 잡는다 — 아니면 /bookings/undefined/pay를 부른다.
+  // 계약상 필수 필드라 빠졌으면 응답 형식이 깨진 버전이다. check 하나로는 조회 check에 묻혀 95%를 넘고
+  // 결제 0건이라 결제 실패율도 통과하므로, 그 자리에서 테스트를 멈춰 Job(= 분석)을 실패시킨다
   if (bookingId == null) {
     check(null, { "hold 응답에 bookingId": () => false });
-    return;
+    exec.test.abort("hold 201 응답에 bookingId가 없다 — 선점 응답 형식이 계약(HoldResult)과 다르다");
   }
 
   // 거절 카드 — booking → payment 왕복을 타고, 응답은 200 + PAYMENT_FAILED 여야 한다
