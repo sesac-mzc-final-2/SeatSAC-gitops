@@ -1,0 +1,18 @@
+# 신호등 대시보드(3.1.7, OPS-05): 기록 규칙 + Grafana 대시보드 ConfigMap. Application cinema-observability(apps/staging)가 sync한다
+# 대시보드는 kube-prometheus-stack의 Grafana 사이드카가 라벨 grafana_dashboard=1 인 ConfigMap을 읽어 올린다(모든 namespace 검색 기본값)
+# 고치는 법: Grafana에서 편집 → 내보내기(JSON) → dashboards/*.json 교체 PR. Grafana 화면의 편집은 저장되지 않는다(영속 저장소 없음)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - prometheusrule.yaml
+configMapGenerator:
+  - name: dashboard-seatsac-traffic-light
+    files:
+      - seatsac-traffic-light.json=dashboards/seatsac-traffic-light.json
+    options:
+      disableNameSuffixHash: true      # 사이드카는 이름이 아니라 라벨로 찾는다. 해시를 붙이면 바뀔 때마다 옛 ConfigMap이 남는다
+      labels:
+        grafana_dashboard: "1"
+        app.kubernetes.io/name: dashboard-seatsac-traffic-light
+        app.kubernetes.io/part-of: cinema

@@ -41,6 +41,11 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+      - name: 신호등 대시보드·기록 규칙 검사 (3.1.7)
+        # 대시보드 JSON 형식·PromQL 문법·기록 규칙 단위 테스트·쿼리 값 검증 (observability/tests/check.py). promtool 은 docker 이미지
+        run: |
+          pip install --quiet pyyaml
+          python3 observability/tests/check.py
       - name: 비밀 값 금지 (Secret 매니페스트 없음)
         run: |
           if grep -rIl --include='*.yaml' -E '^kind:\s*Secret\b' . ; then

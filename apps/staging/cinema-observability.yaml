@@ -1,0 +1,24 @@
+# 신호등 대시보드·기록 규칙 (3.1.7). PrometheusRule CRD는 kube-prometheus-stack(-10)이 만든다 → 그 뒤(-4)
+# 차트와 따로 둔 이유: 대시보드 JSON·규칙 오류가 Prometheus/Grafana 차트 sync를 막지 않게
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cinema-observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  project: cinema
+  source:
+    repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
+    targetRevision: main
+    path: observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]    # 대시보드 JSON이 커서 client-side apply의 last-applied 주석 한도(256KB)를 피한다
+    retry:
+      limit: 10
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

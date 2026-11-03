@@ -1,0 +1,93 @@
+# promtool 규칙 단위 테스트 (클러스터에는 올리지 않는다). 실행: python3 observability/tests/check.py
+# 규칙 본문은 prometheusrule.yaml 의 spec 에서 check.py 가 cinema-rules.yaml 로 뽑아 같은 폴더에 둔다
+rule_files:
+  - cinema-rules.yaml
+evaluation_interval: 30s
+tests:
+  # ① 정상: 5xx 시리즈 없이 요청만 있음 → 비율 0 → 상태 0 (분자가 비어도 사라지지 않아야 한다)
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="catalog",uri="/movies",status="200"}'
+        values: '0+15x80'      # 초당 1건
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="catalog",uri="/movies",le="0.1"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="catalog",uri="/movies",le="+Inf"}'
+        values: '0+15x80'
+    promql_expr_test:
+      - expr: cinema:http_5xx_ratio:rate5m
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cinema:http_5xx_ratio:rate5m{application="catalog"}'
+            value: 0
+      - expr: cinema:service_state
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cinema:service_state{application="catalog"}'
+            value: 0
+  # ② 5xx 2% (주의) 와 5xx 10% (장애)
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="booking",uri="/seats/hold",status="200"}'
+        values: '0+14.7x80'
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="booking",uri="/seats/hold",status="503"}'
+        values: '0+0.3x80'     # 전체 15건 중 0.3 = 2%
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="booking",uri="/seats/hold",le="0.1"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="booking",uri="/seats/hold",le="+Inf"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="gateway",uri="/api/movies",status="200"}'
+        values: '0+13.5x80'
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="gateway",uri="/api/movies",status="500"}'
+        values: '0+1.5x80'     # 10%
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="gateway",uri="/api/movies",le="0.1"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="gateway",uri="/api/movies",le="+Inf"}'
+        values: '0+15x80'
+    promql_expr_test:
+      - expr: cinema:service_state
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cinema:service_state{application="booking"}'
+            value: 1
+          - labels: 'cinema:service_state{application="gateway"}'
+            value: 2
+  # ③ 지연이 나쁘고 5xx는 0: p95 가 500ms(주의)·SSE 연결(…/stream, 수 분짜리)은 지연에서 제외
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="payment",uri="/internal/payments",status="200"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="payment",uri="/internal/payments",le="0.3"}'
+        values: '0+0x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="payment",uri="/internal/payments",le="1"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="payment",uri="/internal/payments",le="+Inf"}'
+        values: '0+15x80'
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="booking",uri="/screenings/{screeningId}/seats/stream",status="200"}'
+        values: '0+0.15x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="booking",uri="/screenings/{screeningId}/seats/stream",le="30"}'
+        values: '0+0x80'
+      - series: 'http_server_requests_seconds_bucket{namespace="cinema-staging",application="booking",uri="/screenings/{screeningId}/seats/stream",le="+Inf"}'
+        values: '0+0.15x80'
+    promql_expr_test:
+      - expr: cinema:http_latency_state{application="payment"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cinema:http_latency_state{application="payment"}'
+            value: 1
+      - expr: cinema:service_state{application="payment"}
+        eval_time: 15m
+        exp_samples:
+          - labels: 'cinema:service_state{application="payment"}'
+            value: 1           # 5xx는 0%(상태 0)지만 지연이 주의(1) → 둘 중 큰 값
+      - expr: cinema:http_p95_seconds:rate5m{application="booking"}
+        eval_time: 15m
+        exp_samples: []        # 지연 계산 대상이 SSE뿐이라 값이 없다 (스트림이 지연을 망치지 않는다)
+  # ④ 트래픽 없음: 값이 없어야 한다 (대시보드가 회색)
+  - interval: 15s
+    input_series:
+      - series: 'http_server_requests_seconds_count{namespace="cinema-staging",application="user",uri="/users/me",status="200"}'
+        values: '5+0x80'
+    promql_expr_test:
+      - expr: cinema:service_state
+        eval_time: 15m
+        exp_samples: []
