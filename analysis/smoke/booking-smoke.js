@@ -34,6 +34,11 @@ const PAY_SCREENING_ID = __ENV.SMOKE_PAY_SCREENING_ID || "";
 // 몇 번째 주기마다 결제를 태울지. 1주기 ≈ 1초(sleep 1 + 요청)라 3이면 분당 약 20건, 6분에 최대 약 120건 —
 // 1분 창 비율의 분모로 충분하다. 남는 데이터는 거절 결제 행(payment_db)이 배포당 100건 안팎이다
 const PAY_EVERY = Number(__ENV.SMOKE_PAY_EVERY || "3");
+// 0·음수·숫자 아님이면 `__ITER % PAY_EVERY === 0`이 늘 거짓이라 결제를 조용히 건너뛴다 →
+// 결제 호출 0건은 롤백 판정에서 「통과」라 payment 연결이 깨진 버전도 넘어간다. 켰을 때는 시작 전에 멈춘다
+if (PAY_SCREENING_ID && !(Number.isInteger(PAY_EVERY) && PAY_EVERY >= 1)) {
+  throw new Error(`SMOKE_PAY_EVERY가 1 이상의 정수가 아니다('${__ENV.SMOKE_PAY_EVERY}')`);
+}
 // Gateway를 지나지 않고 booking에 직접 보내므로 X-User-Id를 직접 넣는다(UUID가 아니면 401).
 // 분석 전용 가짜 사용자다 — Cognito 계정이 아니고 비밀도 아니다. 회차당 선점 1건 규칙 때문에 고정값을 쓴다.
 const SMOKE_USER_ID = __ENV.SMOKE_USER_ID || "00000000-0000-4000-8000-00000000c1a0";
@@ -134,7 +139,8 @@ function payPath() {
 
   const booking = body(hold);
   const bookingId = booking ? booking.bookingId : null;
-  if (bookingId === null) {
+  // 본문은 있는데 bookingId가 빠진 경우(undefined)도 같이 잡는다 — 아니면 /bookings/undefined/pay를 부른다
+  if (bookingId == null) {
     check(null, { "hold 응답에 bookingId": () => false });
     return;
   }

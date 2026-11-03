@@ -59,6 +59,12 @@ jobs:
             echo "::error file=analysis/booking-prepromotion.yaml::SMOKE_PAY_SCREENING_ID가 숫자가 아니다('$pay') — 비워 두면 결제 갈래를 돌지 않는다"; exit 1
           fi
           echo "SMOKE_PAY_SCREENING_ID=${pay:-(꺼짐)}"
+          # 결제 간격은 1 이상의 정수 — 0이나 문자면 결제를 조용히 건너뛰어 결제 0건(= 롤백 판정 통과)이 된다
+          every=$(grep -oE 'name: SMOKE_PAY_EVERY, value: "[^"]*"' analysis/booking-prepromotion.yaml | sed -E 's/.*value: "([^"]*)"/\1/')
+          if ! [[ "$every" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error file=analysis/booking-prepromotion.yaml::SMOKE_PAY_EVERY가 1 이상의 정수가 아니다('$every')"; exit 1
+          fi
+          echo "SMOKE_PAY_EVERY=$every"
       - name: Public 레포 금지 값 (계정 ID·AWS 엔드포인트·레지스트리)
         run: |
           # 모든 파일(문서 포함)에서 12자리 숫자(계정 ID), AWS 서비스 도메인(RDS·Valkey·SQS·Cognito·ECR 주소), images의 newName을 찾는다
