@@ -121,6 +121,9 @@ def main():
             # 캐시 hit 3 : miss 1, 결제 approved 9 : error 1
             {"series": 'catalog_cache_requests_total{result="hit"}', "values": "0+30x80"},
             {"series": 'catalog_cache_requests_total{result="miss"}', "values": "0+10x80"},
+            # 선점 결과: 10분 범위 한가운데서 success 1 · conflict 99 (같은 좌석 100명 동시 요청). active_hold·error 시리즈는 없음
+            {"series": 'booking_seat_hold_total{result="success"}', "values": "0x40 1x40"},
+            {"series": 'booking_seat_hold_total{result="conflict"}', "values": "0x40 99x40"},
             {"series": 'booking_payment_call_total{result="approved"}', "values": "0+9x80"},
             {"series": 'booking_payment_call_total{result="error"}', "values": "0+1x80"},
         ]
@@ -143,6 +146,11 @@ def main():
             # booking+gateway 5xx: gateway 1.5/15 가 5xx, booking 은 0 → 합계 비율 1.5/30 = 5%
             scaled("오류율 (선택한 시간 범위)", 0.05),
         ]
+        # 선점 건수 카드: 성공 1 · 충돌 99, 시리즈가 없는 값은 결과 없음(= "수집 없음", 0으로 보이지 않는다)
+        for res, want in (("success", 1), ("conflict", 99)):
+            cases.append(one(f"선점 {dict(success='성공', conflict='충돌')[res]} 건수 · {res} (선택한 시간 범위)", want))
+        for res, label in (("active_hold", "진행 중 선점 있음"), ("error", "오류")):
+            cases.append({"expr": queries[(f"선점 {label} 건수 · {res} (선택한 시간 범위)", "A")], "eval_time": "15m", "exp_samples": []})
         # API 표 5xx 비율: 5xx 시리즈가 없는 API 도 0 으로 나와야 한다(사라지면 표에서 빠진다)
         api_b = queries[("API별 요청 수 · 5xx 비율 · p95", "B")]
         cases.append({"expr": api_b, "eval_time": "15m", "exp_samples": [

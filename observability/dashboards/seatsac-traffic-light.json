@@ -2349,6 +2349,262 @@
     },
     {
       "id": 31,
+      "type": "stat",
+      "title": "선점 성공 건수 · success (선택한 시간 범위)",
+      "description": "booking_seat_hold_total. 시간 범위를 데모 직전부터로 잡으면 같은 좌석 100명 동시 요청이 success 1 · conflict 99로 읽힌다. booking이 result 값 4개를 기동 때 0으로 등록해야 첫 1건이 빠지지 않는다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(booking_seat_hold_total{result=\"success\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "noValue": "수집 없음",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "선점 충돌 건수 · conflict (선택한 시간 범위)",
+      "description": "booking_seat_hold_total. 시간 범위를 데모 직전부터로 잡으면 같은 좌석 100명 동시 요청이 success 1 · conflict 99로 읽힌다. booking이 result 값 4개를 기동 때 0으로 등록해야 첫 1건이 빠지지 않는다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(booking_seat_hold_total{result=\"conflict\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "noValue": "수집 없음",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "선점 진행 중 선점 있음 건수 · active_hold (선택한 시간 범위)",
+      "description": "booking_seat_hold_total. 시간 범위를 데모 직전부터로 잡으면 같은 좌석 100명 동시 요청이 success 1 · conflict 99로 읽힌다. booking이 result 값 4개를 기동 때 0으로 등록해야 첫 1건이 빠지지 않는다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(booking_seat_hold_total{result=\"active_hold\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "noValue": "수집 없음",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": "stat",
+      "title": "선점 오류 건수 · error (선택한 시간 범위)",
+      "description": "booking_seat_hold_total. 시간 범위를 데모 직전부터로 잡으면 같은 좌석 100명 동시 요청이 success 1 · conflict 99로 읽힌다. booking이 result 값 4개를 기동 때 0으로 등록해야 첫 1건이 빠지지 않는다",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "round(sum(increase(booking_seat_hold_total{result=\"error\"}[$__range])))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 51
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none",
+          "mappings": [],
+          "noValue": "수집 없음",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 35,
       "type": "timeseries",
       "title": "결제 호출 결과 / 초",
       "description": "declined(모의 카드 0000·1111 거절)는 정상 응답이라 롤백 지표에서 제외",
@@ -2371,7 +2627,7 @@
         "h": 7,
         "w": 8,
         "x": 0,
-        "y": 51
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -2483,7 +2739,7 @@
       }
     },
     {
-      "id": 32,
+      "id": 36,
       "type": "timeseries",
       "title": "결제 timeout·error 비율 (5분)",
       "description": "붉은 선 5% — 블루/그린 자동 롤백 기준",
@@ -2506,7 +2762,7 @@
         "h": 7,
         "w": 8,
         "x": 8,
-        "y": 51
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -2561,7 +2817,7 @@
       }
     },
     {
-      "id": 33,
+      "id": 37,
       "type": "timeseries",
       "title": "예매 완료 알림 (아웃박스)",
       "description": "대기 건수가 계속 늘면 릴레이/큐/권한 문제. result=failed는 10회 재시도 후 포기(경보)",
@@ -2593,7 +2849,7 @@
         "h": 7,
         "w": 8,
         "x": 16,
-        "y": 51
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -2644,7 +2900,7 @@
       }
     },
     {
-      "id": 34,
+      "id": 38,
       "type": "row",
       "title": "⑥ 캐시·데이터 계층",
       "collapsed": false,
@@ -2652,12 +2908,12 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 62
       },
       "panels": []
     },
     {
-      "id": 35,
+      "id": 39,
       "type": "timeseries",
       "title": "catalog 캐시 적중률 (5분)",
       "description": "catalog_cache_requests_total",
@@ -2680,7 +2936,7 @@
         "h": 7,
         "w": 6,
         "x": 0,
-        "y": 59
+        "y": 63
       },
       "fieldConfig": {
         "defaults": {
@@ -2731,7 +2987,7 @@
       }
     },
     {
-      "id": 36,
+      "id": 40,
       "type": "timeseries",
       "title": "잔여 좌석 대체 응답 (5분)",
       "description": "catalog→booking seat-counts가 300ms를 넘겨 전체 좌석 수로 대체한 횟수(remainingSeatsSource: TOTAL)",
@@ -2754,7 +3010,7 @@
         "h": 7,
         "w": 6,
         "x": 6,
-        "y": 59
+        "y": 63
       },
       "fieldConfig": {
         "defaults": {
@@ -2805,7 +3061,7 @@
       }
     },
     {
-      "id": 37,
+      "id": 41,
       "type": "timeseries",
       "title": "Valkey 메모리 % · Evictions",
       "description": "CloudWatch(1분 해상도). 붉은 선 80%. Evictions는 0이어야 한다",
@@ -2863,7 +3119,7 @@
         "h": 7,
         "w": 6,
         "x": 12,
-        "y": 59
+        "y": 63
       },
       "fieldConfig": {
         "defaults": {
@@ -2918,7 +3174,7 @@
       }
     },
     {
-      "id": 38,
+      "id": 42,
       "type": "timeseries",
       "title": "알림 큐 · DLQ",
       "description": "CloudWatch(1분 해상도). DLQ가 0이 아니면 런북 6-B-4",
@@ -2976,7 +3232,7 @@
         "h": 7,
         "w": 6,
         "x": 18,
-        "y": 59
+        "y": 63
       },
       "fieldConfig": {
         "defaults": {
