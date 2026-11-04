@@ -6,4 +6,4 @@ apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: cinema/booking
-    newTag: 202e7de
+    newTag: 1afe779
