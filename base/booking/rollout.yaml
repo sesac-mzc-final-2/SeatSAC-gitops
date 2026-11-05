@@ -54,6 +54,35 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels: { app.kubernetes.io/name: booking }
+      initContainers:
+        # RDS CA(PEM) → Java 트러스트스토어(PKCS12). Connector/J sslMode=VERIFY_IDENTITY가 서버 인증서·호스트 이름을 검증한다 (3.1.17)
+        #   PEM 번들은 인증서 여러 개라 한 장씩 나눠 넣는다(keytool은 번들의 첫 인증서만 읽는다)
+        #   트러스트스토어 비밀번호는 공개 CA용 무결성 값이라 비밀이 아니다 → overlay {svc}-config의 trustCertificateKeyStorePassword와 같아야 한다
+        - name: rds-truststore
+          image: cinema/booking                  # overlay images가 앱 컨테이너와 같은 ECR 주소·태그로 바꾼다 (keytool은 JRE에 있다)
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              awk '/BEGIN CERTIFICATE/{n++} n>0{print > ("/tmp/rds-ca-" n ".pem")}' /etc/rds-ca/rds-ca.pem
+              for f in /tmp/rds-ca-*.pem; do
+                keytool -importcert -noprompt -alias "$(basename "$f" .pem)" -file "$f" \
+                  -keystore /truststore/rds-ca.p12 -storetype PKCS12 -storepass rds-ca-truststore
+              done
+              n=$(keytool -list -keystore /truststore/rds-ca.p12 -storetype PKCS12 -storepass rds-ca-truststore | grep -c trustedCertEntry)
+              echo "RDS CA ${n}개를 트러스트스토어에 넣었다"
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }
+            - { name: truststore, mountPath: /truststore }
       containers:
         - name: booking
           image: cinema/booking                  # overlay images가 ECR 주소·태그로 바꾼다
@@ -88,5 +117,8 @@ spec:
             capabilities: { drop: ["ALL"] }
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
+            - { name: truststore, mountPath: /truststore, readOnly: true }   # 3.1.17 RDS CA 트러스트스토어
       volumes:
         - { name: tmp, emptyDir: {} }
+        - { name: truststore, emptyDir: {} }
+        - { name: rds-ca, configMap: { name: rds-ca-bundle } }   # Terraform이 만든다 (gitops에 없음)
