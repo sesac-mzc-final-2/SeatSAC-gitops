@@ -5,3 +5,6 @@
 /overlays/staging/user/         @pinodo @imi21123
 /overlays/staging/booking/      @pinodo @namgungil
 /overlays/staging/payment/      @pinodo @namgungil
+# ⚠️AI ai (3.1.20, ADR-90). base는 Infra가 고치고 김서현이 같이 본다, overlay는 자기 서비스 설정이라 김서현 리뷰(ADR-77)
+/base/ai/                       @pinodo @seohyeon-tomato
+/overlays/staging/ai/           @pinodo @seohyeon-tomato
