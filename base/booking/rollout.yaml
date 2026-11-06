@@ -65,6 +65,8 @@ spec:
             - -c
             - |
               set -eu
+              # 재실행(init 컨테이너 재시작) 때 emptyDir에 남은 이전 결과 때문에 alias 중복으로 실패하지 않게 먼저 지운다
+              rm -f /truststore/rds-ca.p12 /tmp/rds-ca-*.pem
               awk '/BEGIN CERTIFICATE/{n++} n>0{print > ("/tmp/rds-ca-" n ".pem")}' /etc/rds-ca/rds-ca.pem
               for f in /tmp/rds-ca-*.pem; do
                 keytool -importcert -noprompt -alias "$(basename "$f" .pem)" -file "$f" \
