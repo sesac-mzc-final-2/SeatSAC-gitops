@@ -1,0 +1,73 @@
+# ai — 롤링 (maxUnavailable 0, maxSurge 1), replicas 1 고정 (런타임 계약 2장 ⚠️AI 행)
+#   ng-ai(t3.large 1대, 평소 desired 0)에만 뜬다. ng-ai가 0대면 파드는 Pending이 정상 — 다른 서비스·데모에 영향 없음
+#   켜기·끄기: SeatSAC infra/scripts/cluster-scale.sh up ng-ai · down ng-ai (런북 6-G)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai
+  labels:
+    app.kubernetes.io/name: ai
+    app.kubernetes.io/part-of: cinema
+spec:
+  replicas: 1                     # HPA 없음. 스냅샷·캐시가 프로세스 메모리라 늘려도 이득이 없다(워커 1)
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app.kubernetes.io/name: ai }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }   # 새 파드가 Ready(첫 스냅샷 적재)된 뒤 이전 파드를 내린다. t3.large 1대에 2개까지 들어간다
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai
+        app.kubernetes.io/part-of: cinema
+    spec:
+      terminationGracePeriodSeconds: 35
+      automountServiceAccountToken: false   # AWS·쿠버네티스 API를 부르지 않는다 (Claude API는 키, 데이터는 공개 API)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      # ng-ai 노드(SeatSAC Terraform eks.tf, 3.1.19)의 라벨·taint와 같은 값. 기존 5개 서비스는 toleration이 없어 ng-ai에 못 올라간다
+      nodeSelector:
+        cinema/workload: ai
+      tolerations:
+        - { key: cinema/workload, operator: Equal, value: ai, effect: NoSchedule }
+      containers:
+        - name: ai                               # SeatSAC np-check.sh가 컨테이너 이름 = 서비스 이름으로 exec 한다
+          image: cinema/ai                       # overlay image-tag가 태그를, ArgoCD Application이 레지스트리를 붙인다
+          ports:
+            - { name: http, containerPort: 8080 }
+          envFrom:
+          - configMapRef: { name: cinema-infra-endpoints }   # Terraform(staging-k8s) — AI_VALKEY_HOST·PUBLIC_API_BASE_URL (Python은 ${} 치환이 없어 이름 그대로 읽는다)
+          - configMapRef: { name: ai-config }
+          - secretRef: { name: ai-secrets }                  # Terraform(staging-k8s, 3.1.18) — ANTHROPIC_API_KEY
+          # readiness = 첫 스냅샷 적재 + ai Valkey PING (계약 9장). 임베딩 모델 로드·첫 적재를 기다려 startupProbe 150초
+          startupProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }   # 프로세스만 본다 — Valkey·공개 API 장애로 재시작하지 않는다
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] }   # 엔드포인트 제거가 퍼질 시간 (python:3.12-slim에 sleep 있음)
+          resources:
+            requests: { cpu: 250m, memory: 1Gi }  # 임베딩 모델(ONNX) + SQLite 스냅샷 포함
+            limits: { memory: 1536Mi }            # 1.5Gi. cpu limit 없음
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }      # 쓰기는 /tmp만 (HOME=/tmp). SQLite는 :memory:
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }          # 디스크에 쓰는 것이 거의 없다. 넘치면 파드를 내보내 노드 디스크를 지킨다

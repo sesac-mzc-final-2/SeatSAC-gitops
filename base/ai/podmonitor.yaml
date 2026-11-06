@@ -1,0 +1,16 @@
+# 메트릭 수집 — 다른 서비스와 같은 PodMonitor 템플릿. http_server_requests_seconds{application="ai"} + ai_* (계약 5장)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ai
+  labels:
+    app.kubernetes.io/name: ai
+    app.kubernetes.io/part-of: cinema
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: ai }
+  podMetricsEndpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+  podTargetLabels: [rollouts-pod-template-hash]   # Deployment라 값은 없지만 다른 서비스와 같은 템플릿으로 둔다

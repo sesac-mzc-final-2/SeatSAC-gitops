@@ -1,0 +1,9 @@
+# ai 이미지 태그 — SeatSAC build-push가 newTag만 커밋한다 (커밋 작성자 seatsac-build-push[bot]). 사람이 고치지 않는다
+# 처음 값 6e90048 = services/ai 골격(SeatSAC #81) 머지 커밋. 저장소 변수 AI_BUILD_PUSH_ENABLED=true 뒤
+# build-push를 services=ai로 한 번 돌리면 실제로 만든 이미지 태그로 바뀐다(런북 6-G-1 2단계). 그 전에는 Application cinema-ai가 없어 배포되지 않는다
+# newName(레지스트리)을 여기 쓰지 않는다: 계정 ID가 Public 레포에 들어간다. build-push·gitops-validate가 막는다
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - name: cinema/ai
+    newTag: 6e90048

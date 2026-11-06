@@ -1,0 +1,39 @@
+# ⚠️AI ai staging 값 (런타임 계약 9-1). 이 레포는 Public → 계정 ID·엔드포인트·키를 쓰지 않는다 (gitops-validate가 막는다)
+#   - 이미지 태그: ./image-tag (SeatSAC build-push가 newTag만 커밋 — 저장소 변수 AI_BUILD_PUSH_ENABLED=true 뒤부터, 런북 6-G-1)
+#   - 레지스트리 주소: ArgoCD Application cinema-ai(SeatSAC Terraform envs/staging-k8s/argocd_apps.tf, 3.1.18)의 kustomize.images
+#   - AI_VALKEY_HOST·PUBLIC_API_BASE_URL: Terraform ConfigMap cinema-infra-endpoints를 envFrom으로 받는다.
+#     Python은 Spring의 ${} 치환이 없어 여기 ${...}를 쓰지 않는다(이름 그대로 읽는다)
+#   - ANTHROPIC_API_KEY는 Secret ai-secrets(Terraform sensitive). 여기 두지 않는다
+#   - gateway 플래그 APP_AI_ENABLED는 overlays/staging/gateway 쪽이다(rc2 M6 테스트 뒤, ADR-91)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cinema-staging
+resources:
+  - ../../../base/ai
+components:
+  - ./image-tag                   # 태그만. 레지스트리는 ArgoCD가 이 overlay에 images(이름만)로 붙인다
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"     # 다른 서비스와 같게 ConfigMap을 Deployment(0)보다 먼저
+configMapGenerator:
+  - name: ai-config
+    literals:
+      - APP_ENV=staging
+      - APP_AI_VALKEY_PORT=6379
+      - APP_AI_VALKEY_TLS=true
+      - APP_AI_MODEL=claude-sonnet-5-5
+      - APP_AI_REQUEST_DEADLINE_SECONDS=25       # 시간 예산: CloudFront 30 > gateway 28 > 이 값 25
+      - APP_AI_LLM_TIMEOUT_SECONDS=15
+      - APP_AI_LLM_MAX_CALLS_PER_QUERY=3
+      - APP_AI_PROMPT_CACHE_ENABLED=true
+      - APP_AI_SQL_TIMEOUT_SECONDS=5
+      - APP_AI_MAX_ROWS=500
+      - APP_AI_SNAPSHOT_TODAY_INTERVAL=60s
+      - APP_AI_SNAPSHOT_OTHER_INTERVAL=600s
+      - APP_AI_SNAPSHOT_DAYS=7
+      - APP_AI_CACHE_TTL=1h
+      - APP_AI_SESSION_TTL=30m
+      - APP_AI_SEMANTIC_CACHE_ENABLED=true      # rc2까지 의미 캐시가 안 되면 false(정확 일치만, 계약 9-1 B1)
+      - APP_AI_SEMANTIC_THRESHOLD=0.92
+      - APP_AI_LIMIT_PER_MINUTE=10
+      - APP_AI_LIMIT_PER_DAY=100

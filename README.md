@@ -15,7 +15,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 .
 ├── apps/                          ArgoCD Application (App of Apps)
 │   └── staging/                   project · 플랫폼 2 · cinema-common · cinema-observability
-│                                  (root 앱 cinema-root·서비스 Application 5개는 SeatSAC Terraform argocd_apps.tf)
+│                                  (root 앱 cinema-root·서비스 Application 5개 + ⚠️AI cinema-ai는 SeatSAC Terraform argocd_apps.tf)
 ├── platform/                      Helm 차트 values (차트 자체는 apps/staging에서 버전 고정)
 │   ├── argo-rollouts/
 │   └── kube-prometheus-stack/
@@ -23,7 +23,8 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 │   ├── common/                    앱 namespace 인바운드 기본 거부 + analysis
 │   ├── gateway/  booking/         Rollout(블루/그린) · Service · preview Service · NetworkPolicy · PodMonitor (gateway는 + Ingress → ALB)
 │   ├── catalog/  user/  payment/  Deployment(롤링) · Service · NetworkPolicy · PodMonitor
-│   └── {catalog,booking,user,payment}/flyway-job.yaml   DB 마이그레이션 훅 Job (gateway는 DB 없음)
+│   ├── {catalog,booking,user,payment}/flyway-job.yaml   DB 마이그레이션 훅 Job (gateway는 DB 없음)
+│   └── ai/                        ⚠️AI Deployment(롤링, ng-ai 노드에만) · Service · NetworkPolicy · PodMonitor (DB·HPA 없음)
 ├── overlays/staging/{svc}/        staging 값: ConfigMap {svc}-config (엔드포인트는 ${키}만)
 │   └── image-tag/                 이미지 태그(newTag)만 — build-push가 커밋
 ├── components/rollout/            kustomize가 Rollout 안의 ConfigMap 해시 이름을 바꾸게 하는 설정
@@ -39,8 +40,11 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
 | payment | Deployment 롤링 | 1 / 없음 | 150m·384Mi / 576Mi | booking |
+| ⚠️AI ai | Deployment 롤링 · `ng-ai`만 (nodeSelector + toleration `cinema/workload=ai`) | 1 / 없음 | 250m·1Gi / 1.5Gi | gateway |
 
 모든 서비스: monitoring namespace → 8080 허용, egress 제한 없음. 그 밖은 `base/common/default-deny-ingress.yaml`이 막는다(3.1.13).
+
+⚠️AI ai(3.1.20, SeatSAC ADR-90): `ng-ai`가 평소 0대라 파드가 **Pending인 것이 정상**이다(Application `cinema-ai` Health는 Progressing). 켜기·끄기는 SeatSAC `infra/scripts/cluster-scale.sh up ng-ai`·`down ng-ai`(런북 6-G). ai 설정은 Python이라 `${키}` 치환 없이 `cinema-infra-endpoints`의 `AI_VALKEY_HOST`·`PUBLIC_API_BASE_URL`을 이름 그대로 읽는다.
 
 - NetworkPolicy는 L4(포트)까지만 본다 → 허용된 호출자는 `/internal/**`도 부를 수 있다. 외부에서 `/api/internal/**`는 gateway 라우트가 404로 막는다(규약 1장)
 - kubelet 프로브·`kubectl port-forward`·`kubectl exec`는 NetworkPolicy 대상이 아니다(노드·파드 네임스페이스 안에서 들어옴)
