@@ -3,6 +3,9 @@
 #   하나라도 실패 → AnalysisRun Failed → Rollout abort: active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백),
 #   preview는 abortScaleDownDelaySeconds 뒤 축소. gitops 태그는 새 버전에 남으므로 revert PR로 맞춘다(SeatSAC 런북 6-D)
 #   preview·active 구분: PodMonitor가 붙이는 rollouts_pod_template_hash (Rollout이 preview 해시를 인자로 넘긴다)
+#   AI 경로 제외(3.1.21, ADR-86·78 보완): /api/ai/**는 Claude API 지연·장애로 504·503이 날 수 있어 gateway 자동 롤백 판정에서 뺀다.
+#     uri 라벨은 경로 템플릿이 있으면 그 값, 없으면 Spring 기본값이다. /api가 붙든 안 붙든 /ai, /ai/... 만 빠지게 쓴다
+#     (/aim·/api/aim 같은 다른 경로는 빠지지 않는다). 요청 수·5xx 분자·분모 세 곳 모두 같은 조건이어야 비율이 맞는다
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -71,7 +74,7 @@ spec:
         prometheus:
           address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
           query: |
-            sum(increase(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) or vector(0)
+            sum(increase(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*|(/api)?/ai(/.*)?"}[1m])) or vector(0)
     # ③ 5xx ≤ 1% (런타임 계약 5장)
     - name: http-5xx-ratio
       initialDelay: 4m        # 분석은 preview 확장과 동시에(Ready 전) 시작 → Ready 최대 150초(startupProbe 5초×30, k6 setup 대기와 같음) + k6 시작 + 첫 1분 창 전체 + 스크레이프 15초
@@ -83,6 +86,6 @@ spec:
         prometheus:
           address: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
           query: |
-            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*",status=~"5.."}[1m])) or vector(0))
+            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*|(/api)?/ai(/.*)?",status=~"5.."}[1m])) or vector(0))
             /
-            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*"}[1m])) > 0 or vector(1))
+            (sum(rate(http_server_requests_seconds_count{application="gateway",rollouts_pod_template_hash="{{args.preview-hash}}",uri!~"/actuator.*|(/api)?/ai(/.*)?"}[1m])) > 0 or vector(1))
