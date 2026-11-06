@@ -20,7 +20,7 @@ configMapGenerator:
     literals:
       - SPRING_PROFILES_ACTIVE=staging
       - AWS_REGION=ap-northeast-2
-      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}:3306/booking_db?connectionTimeZone=UTC&sslMode=REQUIRED
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}:3306/booking_db?connectionTimeZone=UTC&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/truststore/rds-ca.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=rds-ca-truststore
       - SPRING_DATASOURCE_USERNAME=booking_app
       - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
       - SPRING_FLYWAY_ENABLED=false
