@@ -1,0 +1,22 @@
+# ⚠️AI ai 인바운드 허용 (런타임 계약 6장 ⚠️AI 행, ADR-90). egress는 막지 않는다
+#   gateway(/api/ai/**)와 Prometheus 수집만. 다른 서비스는 ai를 부르지 않는다
+#   ai는 X-User-Id를 그대로 믿는다(gateway가 JWT 검증 뒤 넣는다) → gateway 말고 다른 파드가 닿으면 안 된다
+#   ai → 공개 API는 클러스터 안 gateway가 아니라 CloudFront 주소로 나간다(egress) — 기존 정책 수정 없음
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-ingress
+  labels:
+    app.kubernetes.io/name: ai
+    app.kubernetes.io/part-of: cinema
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: ai }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # Prometheus 수집
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 8080, protocol: TCP }]

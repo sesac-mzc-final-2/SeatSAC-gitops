@@ -45,6 +45,7 @@ reviews:
       instructions: >
         {svc}-config의 키는 런타임 계약 3장 이름만 쓴다(SPRING_* 표준 바인딩, APP_* 앱 고유). 새 키가 보이면 계약 문서에 있는지 묻는다.
         ${...} 자리는 DB_HOST·VALKEY_HOST·SQS_NOTIFICATION_URL·COGNITO_ISSUER_URI·COGNITO_CLIENT_ID만 허용한다. 다른 이름이면 Terraform infra_endpoints.tf에 없는 키라 기동 실패다.
+        ai(Python)는 ${...} 치환이 없다 — overlays/staging/ai의 ai-config에 ${...}가 보이면 지적한다(AI_VALKEY_HOST·PUBLIC_API_BASE_URL은 cinema-infra-endpoints에서 이름 그대로 읽는다). ai-config 키는 런타임 계약 9-1 표의 APP_ENV·APP_AI_*만.
         엔드포인트·URL을 값으로 직접 적으면 지적한다(서비스 간 주소 http://{svc}:8080 은 허용).
         configMapGenerator의 sync-wave는 "-2"(Flyway Job -1보다 먼저)여야 한다. images 블록을 overlay에 직접 두면 지적한다(image-tag Component로).
         블루/그린 서비스(booking·gateway)는 components에 ../../../components/rollout 이 있어야 한다.
@@ -57,6 +58,14 @@ reviews:
         requests cpu·memory와 limits memory는 계약 2장 표 값과 같아야 하고 limits cpu는 두지 않는다. 값이 바뀌면 계약 문서도 바뀌었는지 묻는다.
         envFrom 순서는 cinema-infra-endpoints → {svc}-config → {svc}-secrets(gateway는 secrets 없음). 이름만 참조하고 Secret을 만들지 않는다.
         이미지는 이름 cinema/{svc}만 쓴다(태그·레지스트리 없음).
+
+    - path: "base/ai/**"
+      instructions: >
+        ⚠️AI ai(Python, SeatSAC ADR-90·런타임 계약 2·9장). Deployment 롤링(maxUnavailable 0, maxSurge 1), replicas 1 고정, HPA·Flyway Job 없음이 맞다.
+        nodeSelector cinema/workload: ai 와 toleration(cinema/workload=ai:NoSchedule)이 둘 다 있어야 한다 — 빠지면 ai가 ng-a·ng-c에 떠서 좌석 데모 노드를 잡아먹는다.
+        requests 250m·1Gi, limits memory 1.5Gi(1536Mi), cpu limit 없음. envFrom은 cinema-infra-endpoints → ai-config → ai-secrets.
+        RDS·기존 Valkey 관련 설정(rds-ca 볼륨·트러스트스토어·DB_HOST·VALKEY_HOST)이 들어오면 지적한다(ai는 RDS·기존 Valkey에 연결하지 않는다).
+        컨테이너 이름은 ai여야 한다(SeatSAC np-check.sh가 컨테이너 이름으로 exec).
 
     - path: "base/*/flyway-job.yaml"
       instructions: >
@@ -79,7 +88,8 @@ reviews:
 
     - path: "base/**/networkpolicy.yaml"
       instructions: >
-        인바운드 허용은 런타임 계약 6장 표만: ALB(public 서브넷 CIDR 2개만, VPC CIDR 전체 금지)→gateway, gateway→catalog·booking·user, catalog→booking, booking→catalog·payment, user→booking·catalog, rollout-smoke(분석 Job)→booking·gateway, monitoring→전체(8080).
+        인바운드 허용은 런타임 계약 6장 표만: ALB(public 서브넷 CIDR 2개만, VPC CIDR 전체 금지)→gateway, gateway→catalog·booking·user·ai, catalog→booking, booking→catalog·payment, user→booking·catalog, rollout-smoke(분석 Job)→booking·gateway, monitoring→전체(8080).
+        ai는 gateway가 넣은 X-User-Id를 그대로 믿으므로 ai 인바운드에 gateway·monitoring 말고 다른 허용이 생기면 반드시 지적한다.
         표에 없는 허용, namespaceSelector 전체 허용, egress 제한 추가는 지적한다.
 
     - path: "base/**/podmonitor.yaml"
