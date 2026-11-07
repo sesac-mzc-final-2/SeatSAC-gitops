@@ -1,4 +1,4 @@
-# ⚠️AI ai 인바운드 허용 (런타임 계약 6장 ⚠️AI 행, ADR-90). egress는 막지 않는다
+# ⚠️AI ai 인바운드 허용 (런타임 계약 6장 ⚠️AI 행, ADR-86). egress는 막지 않는다
 #   gateway(/api/ai/**)와 Prometheus 수집만. 다른 서비스는 ai를 부르지 않는다
 #   ai는 X-User-Id를 그대로 믿는다(gateway가 JWT 검증 뒤 넣는다) → gateway 말고 다른 파드가 닿으면 안 된다
 #   ai → 공개 API는 클러스터 안 gateway가 아니라 CloudFront 주소로 나간다(egress) — 기존 정책 수정 없음

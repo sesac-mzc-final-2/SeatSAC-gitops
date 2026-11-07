@@ -44,7 +44,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 
 모든 서비스: monitoring namespace → 8080 허용, egress 제한 없음. 그 밖은 `base/common/default-deny-ingress.yaml`이 막는다(3.1.13).
 
-⚠️AI ai(3.1.20, SeatSAC ADR-90): `ng-ai`가 평소 0대라 파드가 **Pending인 것이 정상**이다(Application `cinema-ai` Health는 Progressing). 켜기·끄기는 SeatSAC `infra/scripts/cluster-scale.sh up ng-ai`·`down ng-ai`(런북 6-G). ai 설정은 Python이라 `${키}` 치환 없이 `cinema-infra-endpoints`의 `AI_VALKEY_HOST`·`PUBLIC_API_BASE_URL`을 이름 그대로 읽는다.
+⚠️AI ai(3.1.20, SeatSAC ADR-86): `ng-ai`가 평소 0대라 파드가 **Pending인 것이 정상**이다(Application `cinema-ai` Health는 처음 10분 Progressing, 그 뒤 Degraded — Deployment `progressDeadlineSeconds` 기본 600초 초과. ng-ai를 켜면 Healthy). 켜기·끄기는 SeatSAC `infra/scripts/cluster-scale.sh up ng-ai`·`down ng-ai`(런북 6-G). ai 설정은 Python이라 `${키}` 치환 없이 `cinema-infra-endpoints`의 `AI_VALKEY_HOST`·`PUBLIC_API_BASE_URL`을 이름 그대로 읽는다.
 
 - NetworkPolicy는 L4(포트)까지만 본다 → 허용된 호출자는 `/internal/**`도 부를 수 있다. 외부에서 `/api/internal/**`는 gateway 라우트가 404로 막는다(규약 1장)
 - kubelet 프로브·`kubectl port-forward`·`kubectl exec`는 NetworkPolicy 대상이 아니다(노드·파드 네임스페이스 안에서 들어옴)
