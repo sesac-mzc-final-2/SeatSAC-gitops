@@ -4,7 +4,7 @@
 #   - AI_VALKEY_HOST·PUBLIC_API_BASE_URL: Terraform ConfigMap cinema-infra-endpoints를 envFrom으로 받는다.
 #     Python은 Spring의 ${} 치환이 없어 여기 ${...}를 쓰지 않는다(이름 그대로 읽는다)
 #   - ANTHROPIC_API_KEY는 Secret ai-secrets(Terraform sensitive). 여기 두지 않는다
-#   - gateway 플래그 APP_AI_ENABLED는 overlays/staging/gateway 쪽이다(rc2 M6 테스트 뒤, ADR-91)
+#   - gateway 플래그 APP_AI_ENABLED는 overlays/staging/gateway 쪽이다(rc2 M6 테스트 뒤, ADR-87)
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: cinema-staging

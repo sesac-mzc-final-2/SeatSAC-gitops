@@ -61,7 +61,7 @@ reviews:
 
     - path: "base/ai/**"
       instructions: >
-        ⚠️AI ai(Python, SeatSAC ADR-90·런타임 계약 2·9장). Deployment 롤링(maxUnavailable 0, maxSurge 1), replicas 1 고정, HPA·Flyway Job 없음이 맞다.
+        ⚠️AI ai(Python, SeatSAC ADR-86·런타임 계약 2·9장). Deployment 롤링(maxUnavailable 0, maxSurge 1), replicas 1 고정, HPA·Flyway Job 없음이 맞다.
         nodeSelector cinema/workload: ai 와 toleration(cinema/workload=ai:NoSchedule)이 둘 다 있어야 한다 — 빠지면 ai가 ng-a·ng-c에 떠서 좌석 데모 노드를 잡아먹는다.
         requests 250m·1Gi, limits memory 1.5Gi(1536Mi), cpu limit 없음. envFrom은 cinema-infra-endpoints → ai-config → ai-secrets.
         RDS·기존 Valkey 관련 설정(rds-ca 볼륨·트러스트스토어·DB_HOST·VALKEY_HOST)이 들어오면 지적한다(ai는 RDS·기존 Valkey에 연결하지 않는다).
