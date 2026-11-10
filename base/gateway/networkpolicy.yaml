@@ -1,4 +1,4 @@
-# gateway 인바운드 허용 (docs/service-runtime-contract.md 6장, 3.1.13): ALB(public 서브넷) · 분석 Job · Prometheus. egress는 막지 않는다
+# gateway 인바운드 허용 (docs/service-runtime-contract.md 6장, 3.1.13): ALB(public 서브넷) · 분석 Job · 부하 테스트 Job · Prometheus. egress는 막지 않는다
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -19,6 +19,9 @@ spec:
       ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # 블루/그린 분석 트래픽 Job (analysis/, 3.1.6) → gateway-preview
         - podSelector: { matchLabels: { app.kubernetes.io/name: rollout-smoke } }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # 부하 테스트 Job (SeatSAC tests/k6/run-in-cluster.sh, 4.2.1 OPS-10) → gateway. 실행 중에만 있다(런북 6-H)
+        - podSelector: { matchLabels: { app.kubernetes.io/name: k6-loadtest } }
       ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # Prometheus 수집
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }

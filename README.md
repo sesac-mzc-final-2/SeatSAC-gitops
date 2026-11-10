@@ -35,7 +35,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 
 | 서비스 | 배포 | replicas / HPA | requests cpu·mem / limit mem | 인바운드 허용 |
 | --- | --- | --- | --- | --- |
-| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(public 서브넷 2개) · 분석 Job |
+| gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(public 서브넷 2개) · 분석 Job · 부하 테스트 Job `k6-loadtest`(4.2.1, 실행 중에만) |
 | booking | Rollout 블루/그린 | 1 / 1~4 | 250m·512Mi / 768Mi | gateway·catalog·user · 분석 Job |
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
