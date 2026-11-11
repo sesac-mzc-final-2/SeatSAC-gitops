@@ -33,3 +33,4 @@ configMapGenerator:
       - APP_SEAT_HOLD_TTL_SECONDS=300
       - APP_SEAT_HOLD_STRATEGY=redis
       - APP_OUTBOX_RELAY_INTERVAL=1s
+      - APP_OUTBOX_RELAY_ENABLED=true   # 예매 완료 알림 아웃박스 → SQS 릴레이 (SeatSAC 런북 6-B-3). 6-B-5 끝에서 끝 확인 뒤에 켠다
