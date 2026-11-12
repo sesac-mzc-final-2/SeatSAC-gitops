@@ -22,7 +22,12 @@ configMapGenerator:
       - AWS_REGION=ap-northeast-2
       - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}:3306/booking_db?connectionTimeZone=UTC&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/truststore/rds-ca.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=rds-ca-truststore
       - SPRING_DATASOURCE_USERNAME=booking_app
-      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
+      # 4.2.1(11/11): 같은 좌석 100명 경쟁에서 진 요청 99건도 409 사유(HELD·RESERVED)를 DB로 확인해 풀 5개 앞에 줄을 섰다
+      #   (hikaricp acquire 최대 0.547초, 선점 p95 849~1187ms). SeatSAC 런타임 계약 3장
+      #   연결 수(RDS db.t4g.small 최대 약 170, 경보 130): 평소 booking 최대 4개 × 15 = 60 + 다른 서비스 35 = 95.
+      #   블루/그린 전환 순간~60초는 preview가 active 수까지 늘어 최대 8개 × 15 = 120 + 35 = 155 → 경보.
+      #   booking이 늘어난 상태의 전환(4.2.2·1차 데모)은 그 전에 maxReplicas 2 또는 풀 10을 정한다
+      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=15
       - SPRING_FLYWAY_ENABLED=false
       - SPRING_DATA_REDIS_HOST=${VALKEY_HOST}
       - SPRING_DATA_REDIS_PORT=6379
@@ -33,3 +38,4 @@ configMapGenerator:
       - APP_SEAT_HOLD_TTL_SECONDS=300
       - APP_SEAT_HOLD_STRATEGY=redis
       - APP_OUTBOX_RELAY_INTERVAL=1s
+      - APP_OUTBOX_RELAY_ENABLED=true   # 3.2.6 예매 완료 알림 아웃박스 → SQS 릴레이(SeatSAC 런북 6-B-3, 6-B-5 끝에서 끝 확인 11/11). 풀 15와 한 커밋 = booking 블루/그린 1회
