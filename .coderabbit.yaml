@@ -78,7 +78,7 @@ reviews:
     - path: "base/{booking,gateway}/**"
       instructions: >
         Argo Rollouts 블루/그린: activeService {svc}, previewService {svc}-preview, prePromotionAnalysis(analysis/), scaleDownDelaySeconds 60, autoPromotionEnabled 확인.
-        gateway는 HPA가 없어야 한다(블루/그린 중 2개). booking HPA는 1~4, CPU 70%.
+        gateway는 HPA가 없어야 한다(블루/그린 중 2개). booking HPA는 1~2, CPU 70%(11/12 4 → 2, 블루/그린 전환 순간 RDS 연결 — SeatSAC 런타임 계약 2·3장).
 
     - path: "base/gateway/ingress.yaml"
       instructions: >

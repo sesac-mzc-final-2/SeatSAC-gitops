@@ -36,7 +36,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 | 서비스 | 배포 | replicas / HPA | requests cpu·mem / limit mem | 인바운드 허용 |
 | --- | --- | --- | --- | --- |
 | gateway | Rollout 블루/그린 | 1 / 없음 | 250m·512Mi / 768Mi | ALB(public 서브넷 2개) · 분석 Job · 부하 테스트 Job `k6-loadtest`(4.2.1, 실행 중에만) |
-| booking | Rollout 블루/그린 | 1 / 1~4 | 250m·512Mi / 768Mi | gateway·catalog·user · 분석 Job |
+| booking | Rollout 블루/그린 | 1 / 1~2 | 250m·512Mi / 768Mi | gateway·catalog·user · 분석 Job |
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
 | payment | Deployment 롤링 | 1 / 없음 | 150m·384Mi / 576Mi | booking |
@@ -138,7 +138,7 @@ booking·gateway는 새 버전을 preview로 띄운 뒤 `analysis/{svc}-prepromo
   - booking: `GET /screenings/{id}/seats`(catalog·Valkey·RDS — **시드에 있는 실제 회차** `SMOKE_SCREENING_ID`, SeatSAC 런북 6-D-0. 지난 날짜여도 200이라 고정값으로 둔다) · `GET /internal/screenings/seat-counts`(RDS). 결제 경로(선점→결제→취소)는 BKG-10(SeatSAC #37) 머지 후 추가 → 그때 결제 호출 최소 건수도 건다
   - gateway: `GET /api/movies` · `GET /api/theaters`(→ catalog). 토큰은 쓰지 않는다
 - **실패하면**: AnalysisRun Failed → Rollout **abort** → active는 이전 버전 그대로(트래픽 전환 없음 = 자동 롤백), preview는 30초 뒤 축소. preview가 10분 안에 Ready가 안 돼도 abort(`progressDeadlineAbort`). gitops 태그는 새 버전에 남아 있으므로 **태그 커밋 revert PR**로 맞춘다
-- **파드 수**: 분석 중 preview는 1개(`previewReplicaCount: 1`), 전환 직전 active 수까지 늘린 뒤 전환 → 전환 순간~60초만 2배. 노드 2대라 booking HPA가 최대(4)일 때 배포하면 preview가 Pending될 수 있다(그러면 10분 뒤 abort)
+- **파드 수**: 분석 중 preview는 1개(`previewReplicaCount: 1`), 전환 직전 active 수까지 늘린 뒤 전환 → 전환 순간~60초만 2배. booking HPA 최대는 2(11/12, 4면 전환 순간 8개 × 풀 15로 RDS 연결이 경보 130을 넘고 노드 2대에서 preview가 Pending될 수 있다 — Pending이면 10분 뒤 abort)
 - **상태 보기**: `kubectl argo rollouts get rollout booking -n cinema-staging --watch` (플러그인), `kubectl -n cinema-staging get analysisrun`
 
 ## 열린 항목

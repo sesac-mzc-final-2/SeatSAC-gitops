@@ -24,10 +24,12 @@ configMapGenerator:
       - SPRING_DATASOURCE_USERNAME=booking_app
       # 4.2.1(11/11): 같은 좌석 100명 경쟁에서 진 요청 99건도 409 사유(HELD·RESERVED)를 DB로 확인해 풀 5개 앞에 줄을 섰다
       #   (hikaricp acquire 최대 0.547초, 선점 p95 849~1187ms). SeatSAC 런타임 계약 3장
-      #   연결 수(RDS db.t4g.small 최대 약 170, 경보 130): 평소 booking 최대 4개 × 15 = 60 + 다른 서비스 35 = 95.
-      #   블루/그린 전환 순간~60초는 preview가 active 수까지 늘어 최대 8개 × 15 = 120 + 35 = 155 → 경보.
-      #   booking이 늘어난 상태의 전환(4.2.2·1차 데모)은 그 전에 maxReplicas 2 또는 풀 10을 정한다
+      #   연결 수(RDS db.t4g.small 최대 약 170, 경보 130, 노션 ADR-96 11/12): booking maxReplicas 2(base/booking/hpa.yaml)
+      #   → 평소 2개 × 15 = 30 + 다른 서비스 35 = 65, 블루/그린 전환 순간~60초(preview = active 수) 4개 × 15 + 35 = 95
       - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=15
+      # 최소 유휴 = 최대 풀(15, Hikari 기본과 같은 동작). 몰리는 순간 연결을 새로 열지 않게 늘 열어 둔다 — 5면 10분 쉰 뒤
+      #   5개만 남아 100명 동시 선점에서 풀 5처럼 동작한다(#21 리뷰 @namgungil). 풀을 다시 조정할 때 찾기 쉽게 값을 적어 둔다
+      - SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=15
       - SPRING_FLYWAY_ENABLED=false
       - SPRING_DATA_REDIS_HOST=${VALKEY_HOST}
       - SPRING_DATA_REDIS_PORT=6379
