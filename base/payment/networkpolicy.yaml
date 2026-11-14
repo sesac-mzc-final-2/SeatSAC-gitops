@@ -14,6 +14,9 @@ spec:
     - from:
         - podSelector: { matchLabels: { app.kubernetes.io/name: booking } }
       ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # 포트원 웹훅 CloudFront → ALB → gateway → payment /webhooks/portone (ADR-112). L4라 포트 단위
+        - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+      ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # Prometheus 수집
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
       ports: [{ port: 8080, protocol: TCP }]
