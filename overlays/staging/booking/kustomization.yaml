@@ -36,6 +36,9 @@ configMapGenerator:
       - SPRING_DATA_REDIS_SSL_ENABLED=true
       - APP_SERVICES_CATALOG_URL=http://catalog:8080
       - APP_SERVICES_PAYMENT_URL=http://payment:8080
+      # 포트원 verify·cancel만 응답 대기 10초(포트원 최대 약 8초 < 10초 < gateway 15초) · 결제 요청이 붙은 PENDING 만료 유예 2분 (ADR-112, 런타임 계약 3장)
+      - APP_SERVICES_PAYMENT_PG_READ_TIMEOUT=10s
+      - APP_PAYMENT_PENDING_GRACE=2m
       - APP_SQS_NOTIFICATION_QUEUE_URL=${SQS_NOTIFICATION_URL}
       - APP_SEAT_HOLD_TTL_SECONDS=300
       - APP_SEAT_HOLD_STRATEGY=redis
