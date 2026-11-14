@@ -25,3 +25,10 @@ configMapGenerator:
       - SPRING_FLYWAY_ENABLED=false
       - APP_PAYMENT_MOCK_DELAY_CARD=9999
       - APP_PAYMENT_MOCK_DELAY=5s
+      # 포트원 토스페이 (ADR-112, SeatSAC 런타임 계약 3장·런북 6-I). Secret(APP_PORTONE_API_SECRET·WEBHOOK_SECRET)이 들어간 뒤 켠다
+      #   Store ID·채널 키는 공개 값이지만 이 레포가 Public이라 Terraform ConfigMap cinema-infra-endpoints에서 ${키}로 받는다
+      - APP_PORTONE_ENABLED=true
+      - APP_PORTONE_API_BASE_URL=https://api.portone.io
+      - APP_PORTONE_STORE_ID=${PORTONE_STORE_ID}
+      - APP_PORTONE_CHANNEL_KEY_TOSSPAY=${PORTONE_CHANNEL_KEY_TOSSPAY}
+      - APP_PORTONE_PENDING_TIMEOUT=7m
