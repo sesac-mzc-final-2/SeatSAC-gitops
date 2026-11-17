@@ -25,3 +25,4 @@ configMapGenerator:
       - APP_SERVICES_CATALOG_URL=http://catalog:8080
       - APP_SERVICES_BOOKING_URL=http://booking:8080
       - APP_SERVICES_USER_URL=http://user:8080
+      - APP_AI_ENABLED=true
