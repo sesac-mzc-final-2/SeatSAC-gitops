@@ -16,3 +16,13 @@ configMapGenerator:
         grafana_dashboard: "1"
         app.kubernetes.io/name: dashboard-seatsac-traffic-light
         app.kubernetes.io/part-of: cinema
+  # ⚠️AI SeatSAC AI 대시보드(3.1.22, ADR-86): ai 지표는 신호등이 아니라 이 대시보드에만. 기록 규칙은 쓰지 않는다
+  - name: dashboard-seatsac-ai
+    files:
+      - seatsac-ai.json=dashboards/seatsac-ai.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+        app.kubernetes.io/name: dashboard-seatsac-ai
+        app.kubernetes.io/part-of: cinema

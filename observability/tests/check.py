@@ -9,6 +9,7 @@ promtool 은 PATH 의 promtool(또는 환경변수 PROMTOOL), 없으면 docker �
   2. 대시보드의 모든 PromQL 문법 (Grafana 변수 $__range 는 치환)
   3. 기록 규칙 문법 + 단위 테스트 (tests/rules.test.yaml)
   4. 대시보드 쿼리를 합성 데이터로 계산해 기대값과 비교 — '트래픽 없음=회색(-1)', '5xx 없어도 0%', 신호등은 시리즈 1개
+  5. ⚠️AI SeatSAC AI 대시보드(3.1.22): 1~2와 같은 형식·문법 검사 + 토큰 절감 카드 값 검증(질문 있음 · 없음)
 """
 import json
 import os
@@ -22,6 +23,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]          # observability/
 DASH = ROOT / "dashboards" / "seatsac-traffic-light.json"
+AI_DASH = ROOT / "dashboards" / "seatsac-ai.json"
 PROMTOOL_IMAGE = "prom/prometheus:v3.5.0"
 
 
@@ -73,6 +75,14 @@ def main():
         fail("dashboard uid 없음")
     print(f"✓ 대시보드 JSON: 패널 {len(ids)}개, Prometheus 쿼리 {len(queries)}개")
 
+    ai_dash = json.loads(AI_DASH.read_text(encoding="utf-8"))
+    ai_queries, ai_ids = collect_queries(ai_dash)
+    if len(ai_ids) != len(set(ai_ids)):
+        fail("AI 대시보드 panel id 중복")
+    if not ai_dash.get("uid") or ai_dash["uid"] == dash["uid"]:
+        fail("AI 대시보드 uid 없음 또는 신호등과 같음")
+    print(f"✓ AI 대시보드 JSON: 패널 {len(ai_ids)}개, Prometheus 쿼리 {len(ai_queries)}개")
+
     rule = yaml.safe_load((ROOT / "prometheusrule.yaml").read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -80,7 +90,7 @@ def main():
         yaml.safe_dump({"groups": rule["spec"]["groups"]}, (tmp / "cinema-rules.yaml").open("w", encoding="utf-8"), allow_unicode=True)
 
         # 2. 대시보드 PromQL 문법
-        recs = [{"record": f"dash:q{i}", "expr": e} for i, e in enumerate(queries.values())]
+        recs = [{"record": f"dash:q{i}", "expr": e} for i, e in enumerate([*queries.values(), *ai_queries.values()])]
         yaml.safe_dump({"groups": [{"name": "dash", "rules": recs}]}, (tmp / "dash-rules.yaml").open("w", encoding="utf-8"), allow_unicode=True)
         p = promtool(["check", "rules", "dash-rules.yaml"], tmp)
         if p.returncode:
@@ -161,8 +171,57 @@ def main():
         # 선점 p95: 100~250ms 버킷 선형 보간 = 0.1 + 0.15 × 0.95 = 0.2425
         cases.append({"expr": queries[("좌석 선점 p95", "A")], "eval_time": "15m",
                       "exp_samples": [{"labels": "{}", "value": 0.2425}]})
+        # ⚠️AI 토큰 절감 카드. 15초마다 cache_exact·cache_semantic·preset·nl2sql 1건씩(10분 = 각 40건),
+        # 토큰 input 300·output 100·cache_read 50 → 답 160 · Claude 없이 50% · 캐시 80 · 토큰 16000
+        # · 1건당 16000/80 = 200 · 아낀 토큰 200 × 80 = 16000 · 절감률 80/(80+80) = 50%
+        def aq(title):
+            return ai_queries[(title, "A")]
+
+        def ai_one(title, value):
+            return {"expr": aq(title), "eval_time": "15m", "exp_samples": [{"labels": "{}", "value": value}]}
+
+        def ai_scaled(title, value):
+            return {"expr": f"round(({aq(title)}) * 1000)", "eval_time": "15m",
+                    "exp_samples": [{"labels": "{}", "value": round(value * 1000)}]}
+
+        ai_inp = [{"series": f'ai_chat_total{{path="{p}",result="ok"}}', "values": "0+1x80"}
+                  for p in ("cache_exact", "cache_semantic", "preset", "nl2sql")]
+        ai_inp += [{"series": f'ai_tokens_total{{kind="{k}",path="nl2sql"}}', "values": f"0+{v}x80"}
+                   for k, v in (("input", 300), ("output", 100), ("cache_read", 50))]
+        ai_inp.append(s("http_server_requests_seconds_count", 'application="ai",uri="/ai/chat",method="POST",status="200"', "0+4x80"))
+        ai_cases = [
+            ai_one("답한 질문", 160),
+            ai_scaled("Claude 없이 답한 비율", 0.5),
+            ai_one("캐시로 답한 건수", 80),
+            ai_scaled("토큰 절감률 (추정)", 0.5),
+            ai_one("쓴 Claude 토큰", 16000),
+            ai_one("Claude 답 1건당 토큰", 200),
+            ai_one("아낀 토큰 (추정)", 16000),
+            ai_one("프롬프트 캐싱 읽기 토큰", 2000),
+            ai_one("/ai/chat 5xx 비율 (5분)", 0),          # 5xx 시리즈가 없어도 0%
+        ]
+        # 질문이 없을 때(ai 지표는 수집됨 — ai가 기동 때 ai_chat_total 라벨을 0으로 미리 만든다): 비율은 회색 -1,
+        # 파드 0대, 1건당 토큰은 결과 없음(NaN을 숫자로 보이지 않게)
+        ai_empty = [{"series": "up", "values": "1x80"},
+                    {"series": 'ai_chat_total{path="preset",result="ok"}', "values": "0x80"}]
+        ai_empty_cases = [
+            ai_one("Claude 없이 답한 비율", -1),
+            ai_one("토큰 절감률 (추정)", -1),
+            ai_one("/ai/chat 5xx 비율 (5분)", -1),
+            ai_one("/ai/chat p95 (5분)", -1),
+            ai_one("ai 파드 Ready", 0),
+            {"expr": aq("Claude 답 1건당 토큰"), "eval_time": "15m", "exp_samples": []},
+            {"expr": aq("아낀 토큰 (추정)"), "eval_time": "15m", "exp_samples": []},
+        ]
+        # ai 지표가 아예 없을 때(ng-ai 0대·수집 장애): 「질문 없음」(-1)이 아니라 결과 없음 → 「수집 없음」
+        ai_down = [{"series": "up", "values": "1x80"}]
+        ai_down_cases = [{"expr": aq(t), "eval_time": "15m", "exp_samples": []}
+                         for t in ("Claude 없이 답한 비율", "토큰 절감률 (추정)", "/ai/chat 5xx 비율 (5분)", "/ai/chat p95 (5분)")]
         spec = {"rule_files": ["cinema-rules.yaml"], "evaluation_interval": "30s",
-                "tests": [{"interval": "15s", "input_series": inp, "promql_expr_test": cases}]}
+                "tests": [{"interval": "15s", "input_series": inp, "promql_expr_test": cases},
+                          {"interval": "15s", "input_series": ai_inp, "promql_expr_test": ai_cases},
+                          {"interval": "15s", "input_series": ai_empty, "promql_expr_test": ai_empty_cases},
+                          {"interval": "15s", "input_series": ai_down, "promql_expr_test": ai_down_cases}]}
         yaml.safe_dump(spec, (tmp / "dash.test.yaml").open("w", encoding="utf-8"), allow_unicode=True, width=10 ** 6)
         p = promtool(["test", "rules", "dash.test.yaml"], tmp)
         if p.returncode:
