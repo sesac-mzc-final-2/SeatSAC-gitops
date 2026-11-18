@@ -279,7 +279,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "((sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range])) / (sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range])) + sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope\"}[$__range])))) > -1) or vector(-1)",
+          "expr": "((sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range])) / (sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range])) + sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope|clarify\"}[$__range])))) > -1) or vector(-1)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -415,7 +415,7 @@
       "id": 8,
       "type": "stat",
       "title": "Claude 답 1건당 토큰",
-      "description": "input+output / Claude를 부른 답(preset·nl2sql·rejected·out_of_scope). Claude 답이 0건이면 수집 없음",
+      "description": "input+output / Claude를 부른 답(preset·nl2sql·rejected·out_of_scope·clarify — 되묻기도 Claude를 부른다, SeatSAC #140). Claude 답이 0건이면 수집 없음",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -426,7 +426,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "round(sum(increase(ai_tokens_total{kind=~\"input|output\"}[$__range])) / sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope\"}[$__range]))) > -1",
+          "expr": "round(sum(increase(ai_tokens_total{kind=~\"input|output\"}[$__range])) / sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope|clarify\"}[$__range]))) > -1",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -490,7 +490,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "round(sum(increase(ai_tokens_total{kind=~\"input|output\"}[$__range])) / sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope\"}[$__range])) * sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range]))) > -1",
+          "expr": "round(sum(increase(ai_tokens_total{kind=~\"input|output\"}[$__range])) / sum(increase(ai_chat_total{path=~\"preset|nl2sql|rejected|out_of_scope|clarify\"}[$__range])) * sum(increase(ai_chat_total{result=\"ok\",path=~\"cache_exact|cache_semantic\"}[$__range]))) > -1",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
