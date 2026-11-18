@@ -1,0 +1,31 @@
+# 3.1.24 로그 수집 Alloy (Promtail은 지원 종료). 차트 버전 고정(grafana/alloy 1.15.0). 올릴 때만 PR — helm search repo로 확인
+# wave 6: Loki(5) 다음. 파드 1개가 Kubernetes API로 cinema-staging 파드 로그를 읽어 Loki로 보낸다(노드마다 뜨는 DaemonSet 아님)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  # 이 Application이 지워지면(gitops revert로 cinema-root가 prune) 차트가 만든 리소스도 같이 지운다 — 없으면 워크로드가 남는다
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: cinema
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: 1.15.0
+      helm:
+        valueFiles: [$values/platform/alloy/values.yaml]
+    - repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]
+    retry:
+      limit: 10
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

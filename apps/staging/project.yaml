@@ -11,6 +11,8 @@ spec:
     - https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
     - https://argoproj.github.io/argo-helm
     - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts            # loki · alloy (3.1.24). 공용 cinema 프로젝트에 둔다 — argo-helm·prometheus-community와 같은 플랫폼 차트 저장소이고,
+                                                       # 차트·버전은 각 Application에서 고정한다(앱이 2개라 프로젝트를 나눌 이득이 없다). 이 레포 PR 리뷰가 사용처를 막는다
   destinations:
     - { server: https://kubernetes.default.svc, namespace: cinema-staging }
     - { server: https://kubernetes.default.svc, namespace: monitoring }
