@@ -200,8 +200,10 @@ def main():
             ai_one("프롬프트 캐싱 읽기 토큰", 2000),
             ai_one("/ai/chat 5xx 비율 (5분)", 0),          # 5xx 시리즈가 없어도 0%
         ]
-        # 질문이 없을 때(ng-ai 0대): 비율은 회색 -1, 파드 0대, 1건당 토큰은 결과 없음(NaN을 숫자로 보이지 않게)
-        ai_empty = [{"series": "up", "values": "1x80"}]
+        # 질문이 없을 때(ai 지표는 수집됨 — ai가 기동 때 ai_chat_total 라벨을 0으로 미리 만든다): 비율은 회색 -1,
+        # 파드 0대, 1건당 토큰은 결과 없음(NaN을 숫자로 보이지 않게)
+        ai_empty = [{"series": "up", "values": "1x80"},
+                    {"series": 'ai_chat_total{path="preset",result="ok"}', "values": "0x80"}]
         ai_empty_cases = [
             ai_one("Claude 없이 답한 비율", -1),
             ai_one("토큰 절감률 (추정)", -1),
@@ -211,10 +213,15 @@ def main():
             {"expr": aq("Claude 답 1건당 토큰"), "eval_time": "15m", "exp_samples": []},
             {"expr": aq("아낀 토큰 (추정)"), "eval_time": "15m", "exp_samples": []},
         ]
+        # ai 지표가 아예 없을 때(ng-ai 0대·수집 장애): 「질문 없음」(-1)이 아니라 결과 없음 → 「수집 없음」
+        ai_down = [{"series": "up", "values": "1x80"}]
+        ai_down_cases = [{"expr": aq(t), "eval_time": "15m", "exp_samples": []}
+                         for t in ("Claude 없이 답한 비율", "토큰 절감률 (추정)", "/ai/chat 5xx 비율 (5분)", "/ai/chat p95 (5분)")]
         spec = {"rule_files": ["cinema-rules.yaml"], "evaluation_interval": "30s",
                 "tests": [{"interval": "15s", "input_series": inp, "promql_expr_test": cases},
                           {"interval": "15s", "input_series": ai_inp, "promql_expr_test": ai_cases},
-                          {"interval": "15s", "input_series": ai_empty, "promql_expr_test": ai_empty_cases}]}
+                          {"interval": "15s", "input_series": ai_empty, "promql_expr_test": ai_empty_cases},
+                          {"interval": "15s", "input_series": ai_down, "promql_expr_test": ai_down_cases}]}
         yaml.safe_dump(spec, (tmp / "dash.test.yaml").open("w", encoding="utf-8"), allow_unicode=True, width=10 ** 6)
         p = promtool(["test", "rules", "dash.test.yaml"], tmp)
         if p.returncode:
