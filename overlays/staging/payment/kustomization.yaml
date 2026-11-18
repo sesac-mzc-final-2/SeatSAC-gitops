@@ -11,6 +11,11 @@ resources:
   - ../../../base/payment
 components:
   - ./image-tag                   # 태그만. 레지스트리는 ArgoCD가 이 overlay에 images(이름만)로 붙인다
+# ⚠️ 5.1.5 장애 격리 시연 녹화용 [원복 예정] — payment 파드 0개. 녹화가 끝나면 이 PR을 revert한다(replicas 블록 삭제 → base의 1)
+#   기대: 조회·선점(catalog·booking·user)은 정상, 결제만 실패(booking → payment 연결 실패 → 503 PAYMENT_RESULT_UNKNOWN, 서킷 열림)
+replicas:
+  - name: payment
+    count: 0
 generatorOptions:
   annotations:
     argocd.argoproj.io/sync-wave: "-2"     # Flyway Job(-1)보다 먼저
