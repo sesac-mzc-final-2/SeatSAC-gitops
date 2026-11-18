@@ -180,3 +180,6 @@ Grafana → Explore → 데이터소스 **Loki**. 전제·적용 순서는 SeatS
 - 라벨은 `namespace`·`app`·`container`·`pod`뿐이다. traceId·userId는 라벨이 아니라 `| json` 뒤 필터로 찾는다(라벨로 만들면 인덱스가 폭발한다)
 - 보존 7일(S3 수명 주기 14일은 안전망). gateway 접근 로그의 `clientIp`는 저장 전에 `***`로 가린다
 - 파드가 지워져도(블루/그린 전환·abort 뒤 이전 버전) 로그가 남는다. 알림 Lambda 로그는 CloudWatch에 있다(여기로 옮기지 않음)
+- 조회 경계: NetworkPolicy `loki-ingress` — 3100은 Grafana·Alloy만(Loki는 `auth_enabled: false`)
+- 되돌리기: 이 PR revert → `cinema-root`가 `loki`·`alloy` Application을 prune하고, finalizer(`resources-finalizer.argocd.argoproj.io`)가 StatefulSet·Deployment·Role까지 지운다. `kubectl -n monitoring get statefulset loki`·`kubectl -n cinema-staging get role alloy`가 없으면 끝
+- Loki 파드가 다시 뜨면 compactor가 지우려던 청크 일부는 S3 수명 주기(14일)가 지울 때까지 남는다(로컬 marker가 emptyDir라서). 조회에는 나오지 않는다

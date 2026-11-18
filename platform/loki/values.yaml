@@ -2,12 +2,15 @@
 #   - 버킷: SeatSAC Terraform envs/staging/loki.tf (cinema-staging-loki-{계정ID}). 이름에 계정 ID가 있어 여기 쓰지 않는다 →
 #     ConfigMap loki-storage(SeatSAC Terraform envs/staging-k8s/loki.tf)를 envFrom으로 받고 -config.expand-env로 ${LOKI_S3_BUCKET} 치환
 #   - 자격 증명: Pod Identity cinema-staging-loki-pod ↔ ServiceAccount monitoring/loki (키 없음)
-#   - 로컬 디스크는 emptyDir(EBS CSI 없음). 파드가 다시 뜨면 아직 S3에 올리지 않은 최근 로그(수 분)만 잃는다
+#   - 로컬 디스크 /var/loki는 emptyDir(EBS CSI 없음 — 아래 extraVolumes. 루트 파일시스템은 읽기 전용이라 이 마운트가 없으면 기동하지 못한다).
+#     파드가 다시 뜨면 ① 아직 S3에 올리지 않은 최근 로그(수 분)를 잃고 ② compactor가 지우려고 표시해 둔 청크 목록(로컬 marker)이
+#     사라져, 그 청크는 조회되지 않은 채 S3 수명 주기(14일, SeatSAC loki.tf)가 지울 때까지 남는다(최대 약 7일 더)
+#   - 조회는 NetworkPolicy loki-ingress로 Grafana·Alloy만(auth_enabled false라 Loki 자체는 호출자를 확인하지 않는다)
 #   - 라벨은 값 종류가 적은 것만(Alloy가 붙임: namespace·app·container·pod). traceId·userId는 라벨이 아니라 | json 으로 거른다
 deploymentMode: SingleBinary
 
 loki:
-  auth_enabled: false            # 테넌트 하나(클러스터 안에서만 접근, Grafana가 유일한 조회자)
+  auth_enabled: false            # 테넌트 하나(tenant fake). 접근은 아래 NetworkPolicy가 Grafana·Alloy로 제한한다
   commonConfig:
     replication_factor: 1
   schemaConfig:
@@ -50,7 +53,13 @@ singleBinary:
   extraEnvFrom:
     - configMapRef: { name: loki-storage }
   persistence:
-    enabled: false               # emptyDir
+    enabled: false               # PVC 없음 → /var/loki를 아래 emptyDir로 직접 붙인다(차트는 대신 붙여 주지 않는다)
+  extraVolumes:
+    - name: data
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: data
+      mountPath: /var/loki     # path_prefix: WAL·TSDB 인덱스·compactor 작업 디렉터리
   resources:
     requests: { cpu: 200m, memory: 512Mi }
     limits: { memory: 1Gi }
@@ -77,3 +86,34 @@ sidecar:
     enabled: false               # 규칙(ruler) 안 씀 — 켜면 클러스터 전체 ConfigMap·Secret을 읽는 ClusterRole이 생긴다
 rbac:
   namespaced: true               # ClusterRole 대신 monitoring namespace Role만
+
+# Loki 수신 경계: 3100(HTTP)은 Grafana(조회)·Alloy(push)만, 그 밖의 포트는 Loki 자기 자신만(memberlist·gRPC).
+# monitoring namespace에는 다른 NetworkPolicy가 없다 → 이 정책은 Loki 파드에만 걸린다. egress(S3)는 막지 않는다.
+# kubelet 프로브(/ready)는 NetworkPolicy 대상이 아니다(SeatSAC 런타임 계약 6장)
+extraObjects:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: loki-ingress
+      labels:
+        app.kubernetes.io/name: loki
+        app.kubernetes.io/part-of: cinema
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: loki
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: grafana     # kube-prometheus-stack Grafana
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: alloy
+          ports:
+            - { port: 3100, protocol: TCP }
+        - from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: loki

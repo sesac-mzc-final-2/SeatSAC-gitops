@@ -5,6 +5,8 @@ kind: Application
 metadata:
   name: alloy
   namespace: argocd
+  # 이 Application이 지워지면(gitops revert로 cinema-root가 prune) 차트가 만든 리소스도 같이 지운다 — 없으면 워크로드가 남는다
+  finalizers: [resources-finalizer.argocd.argoproj.io]
   annotations:
     argocd.argoproj.io/sync-wave: "6"
 spec:
