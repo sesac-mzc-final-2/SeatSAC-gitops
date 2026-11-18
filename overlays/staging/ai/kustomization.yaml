@@ -35,5 +35,5 @@ configMapGenerator:
       - APP_AI_SESSION_TTL=30m
       - APP_AI_SEMANTIC_CACHE_ENABLED=true      # rc2까지 의미 캐시가 안 되면 false(정확 일치만, 계약 9-1 B1)
       - APP_AI_SEMANTIC_THRESHOLD=0.92
-      - APP_AI_LIMIT_PER_MINUTE=10
-      - APP_AI_LIMIT_PER_DAY=100
+      - APP_AI_LIMIT_PER_MINUTE=600               # 사실상 없음 — 동시 1건 잠금이 남아 있어 한 사람이 분당 수십 건을 넘기 어렵다(11/18 발표 전 테스트)
+      - APP_AI_LIMIT_PER_DAY=300                  # 100 → 300 (발표 전 테스트·시연 연습). 월 지출 한도 $90 은 그대로
