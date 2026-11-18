@@ -1,0 +1,31 @@
+# 3.1.24 로그 저장소 Loki (SeatSAC ADR-113 가번호). 차트 버전 고정(grafana/loki 7.5.0 = Loki 3.6.16). 올릴 때만 PR — helm search repo로 확인
+# wave 5: 다른 앱 뒤. Loki가 S3·권한 문제로 Healthy가 안 돼도 앞 wave(플랫폼·서비스 공통)의 sync를 막지 않게 맨 뒤에 둔다
+# 전제(SeatSAC Terraform, 런북 6-J): S3 버킷 cinema-staging-loki-{계정ID} · Pod Identity cinema-staging-loki-pod(monitoring/loki) ·
+#   ConfigMap monitoring/loki-storage(LOKI_S3_BUCKET). 버킷 이름은 계정 ID가 들어가 이 Public 레포에 쓰지 않는다
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: cinema
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki
+      targetRevision: 7.5.0
+      helm:
+        valueFiles: [$values/platform/loki/values.yaml]
+    - repoURL: https://github.com/sesac-mzc-final-2/SeatSAC-gitops.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]
+    retry:
+      limit: 10
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

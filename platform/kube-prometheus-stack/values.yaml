@@ -27,6 +27,15 @@ grafana:
       jsonData:
         authType: default        # SDK 기본 자격 증명 체인 (Pod Identity 환경변수)
         defaultRegion: ap-northeast-2
+    # Loki (3.1.24, ADR-113 가번호): Explore에서 {namespace="cinema-staging"} | json | traceId="…" 로 모든 서비스 로그를 시각순으로.
+    # Loki 앱(platform/loki, wave 5)이 없으면 이 데이터소스만 오류로 보이고 나머지 패널은 그대로다
+    - name: Loki
+      uid: loki
+      type: loki
+      access: proxy
+      url: http://loki.monitoring.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000
 nodeExporter:
   enabled: true
 kubeStateMetrics:

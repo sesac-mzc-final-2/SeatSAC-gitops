@@ -14,11 +14,13 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 ```
 .
 ├── apps/                          ArgoCD Application (App of Apps)
-│   └── staging/                   project · 플랫폼 2 · cinema-common · cinema-observability
+│   └── staging/                   project · 플랫폼 2 · cinema-common · cinema-observability · loki · alloy(3.1.24)
 │                                  (root 앱 cinema-root·서비스 Application 5개 + ⚠️AI cinema-ai는 SeatSAC Terraform argocd_apps.tf)
 ├── platform/                      Helm 차트 values (차트 자체는 apps/staging에서 버전 고정)
 │   ├── argo-rollouts/
-│   └── kube-prometheus-stack/
+│   ├── kube-prometheus-stack/
+│   ├── loki/                      로그 저장소(SingleBinary, S3 — 버킷 이름은 Terraform ConfigMap loki-storage) (3.1.24)
+│   └── alloy/                     로그 수집(파드 1개, Kubernetes API로 cinema-staging 로그 읽기, clientIp 가림) (3.1.24)
 ├── base/                          서비스별 공통 매니페스트 (값 없음)
 │   ├── common/                    앱 namespace 인바운드 기본 거부 + analysis
 │   ├── gateway/  booking/         Rollout(블루/그린) · Service · preview Service · NetworkPolicy · PodMonitor (gateway는 + Ingress → ALB)
@@ -61,6 +63,8 @@ cinema-root (apps/staging) — 앞 wave 앱이 Healthy가 된 뒤 다음 wave (A
   wave -10  argo-rollouts · kube-prometheus-stack (Rollout·PodMonitor CRD)
   wave  -5  cinema-common (기본 거부 NetworkPolicy · AnalysisTemplate)
   wave  -4  cinema-observability (신호등 대시보드 · 기록 규칙 — PrometheusRule CRD 필요 → kube-prometheus-stack(-10) 다음)
+  wave   5  loki (3.1.24 — S3·Pod Identity 전제. 맨 뒤라 Loki가 Healthy가 안 돼도 앞 앱 sync를 막지 않는다)
+  wave   6  alloy (Loki 다음)
 
 cinema-{svc} (root 밖, 동시에 시작 — CRD가 아직 없으면 재시도 10회·최대 약 20분으로 맞춘다)
   ConfigMap {svc}-config (wave -2) → Flyway Job (Sync 훅, wave -1) → Rollout/Deployment·Ingress (wave 0)
@@ -70,6 +74,8 @@ cinema-{svc} (root 밖, 동시에 시작 — CRD가 아직 없으면 재시도 1
 | --- | --- | --- |
 | argo-rollouts | argo-helm `argo-rollouts` | `2.43.8` |
 | kube-prometheus-stack | prometheus-community `kube-prometheus-stack` | `92.13.1` |
+| loki | grafana `loki` (Loki 3.6) | `7.5.0` |
+| alloy | grafana `alloy` | `1.15.0` |
 | ArgoCD 자체 | SeatSAC `staging-k8s.tfvars` `argocd_chart_version` | Terraform |
 
 ## 상태 보기
@@ -160,3 +166,17 @@ rm -rf overlays/staging/_sim-booking
 ```
 
 PR이 올라오면 `gitops-validate`가 모든 kustomization에 대해 `kustomize build`와 kubeconform 검사를 돌리고, 모든 파일(이 README 포함)에 Secret 매니페스트·12자리 숫자(계정 ID)·AWS 서비스 도메인 주소·`newName`이 있으면 실패한다. gitleaks도 같이 돈다.
+
+## 로그 조회 (Loki, 3.1.24)
+
+Grafana → Explore → 데이터소스 **Loki**. 전제·적용 순서는 SeatSAC 런북 6-J(Terraform 버킷·Pod Identity → staging-k8s ConfigMap → 이 레포 머지).
+
+```logql
+{namespace="cinema-staging"} | json | traceId="<32자리>"          # 한 요청을 모든 서비스에서 시각순으로
+{namespace="cinema-staging", app="gateway"} |= "PrematureClose"     # gateway 유휴 연결 503 확인
+{namespace="cinema-staging", app="booking"} | json | level="ERROR"
+```
+
+- 라벨은 `namespace`·`app`·`container`·`pod`뿐이다. traceId·userId는 라벨이 아니라 `| json` 뒤 필터로 찾는다(라벨로 만들면 인덱스가 폭발한다)
+- 보존 7일(S3 수명 주기 14일은 안전망). gateway 접근 로그의 `clientIp`는 저장 전에 `***`로 가린다
+- 파드가 지워져도(블루/그린 전환·abort 뒤 이전 버전) 로그가 남는다. 알림 Lambda 로그는 CloudWatch에 있다(여기로 옮기지 않음)
