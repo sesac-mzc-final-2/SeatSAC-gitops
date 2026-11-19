@@ -44,3 +44,4 @@ configMapGenerator:
       - APP_SEAT_HOLD_STRATEGY=redis
       - APP_OUTBOX_RELAY_INTERVAL=1s
       - APP_OUTBOX_RELAY_ENABLED=true   # 3.2.6 예매 완료 알림 아웃박스 → SQS 릴레이(SeatSAC 런북 6-B-3, 6-B-5 끝에서 끝 확인 11/11). 풀 15와 한 커밋 = booking 블루/그린 1회
+      - APP_DEMO_REVISION=t1-1120   # 앱이 읽지 않는 값. 바꾸면 ConfigMap 해시가 바뀌어 booking 블루/그린 1회(4.2.2 T1 시연·녹화용). 계약 3장 반영 예정
