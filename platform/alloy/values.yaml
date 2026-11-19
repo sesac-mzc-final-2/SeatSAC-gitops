@@ -70,10 +70,17 @@ alloy:
         forward_to = [loki.process.mask.receiver]
       }
 
-      // gateway 접근 로그 "clientIp":"1.2.3.4" → "clientIp":"***"
+      // gateway 접근 로그의 사용자 IP 가리기 — 두 곳에 들어 있다
+      //   ① JSON 필드  "clientIp":"1.2.3.4"            → "clientIp":"***"
+      //   ② message 안 "… clientIp=1.2.3.4"(logstash kv) → "… clientIp=***"  (②가 빠져 있어 실제 IP가 남았다, 11/20 확인)
+      //   캡처 그룹만 바뀐다. ②는 IP 문자(숫자·16진수·.·:)만 잡아 뒤의 따옴표·JSON을 건드리지 않는다
       loki.process "mask" {
         stage.replace {
           expression = "\"clientIp\":\"([^\"]*)\""
+          replace    = "***"
+        }
+        stage.replace {
+          expression = "clientIp=([0-9A-Fa-f.:]+)"
           replace    = "***"
         }
         forward_to = [loki.write.default.receiver]
