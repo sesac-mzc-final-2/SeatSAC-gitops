@@ -37,3 +37,4 @@ configMapGenerator:
       - APP_AI_SEMANTIC_THRESHOLD=0.92
       - APP_AI_LIMIT_PER_MINUTE=600               # 사실상 없음 — 동시 1건 잠금이 남아 있어 한 사람이 분당 수십 건을 넘기 어렵다(11/18 발표 전 테스트)
       - APP_AI_LIMIT_PER_DAY=300                  # 100 → 300 (발표 전 테스트·시연 연습). 월 지출 한도 $90 은 그대로
+      - APP_AI_SEAT_HOLD_ENABLED=false            # 3.4.19 채팅 좌석 잡기 — staging 확인 전까지 끈다(SeatSAC #154). 확인 뒤 이 줄을 지우면 앱 기본값(켜짐)
