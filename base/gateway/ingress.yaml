@@ -4,6 +4,10 @@
 #   보안그룹: Terraform이 만든 cinema-staging-alb(이름으로 지정 — Public 레포라 ID를 쓰지 않는다). CloudFront 접두사 목록에서만 80 허용,
 #   노드 SG의 ALB → 8080 규칙도 Terraform(3.1.2)이 이미 넣었다 → 컨트롤러가 규칙을 만들지 않게 manage-backend…=false
 #   SSE(런타임 계약 6장 ②): 유휴 120초, 내려가는 파드 정리 30초(terminationGracePeriodSeconds 35보다 짧게)
+#   HTTPS 원본(3.1.23 후속, SeatSAC 런북 7-8): CloudFront → ALB 443. 인증서는 ARN을 쓰지 않고(Public 레포 — 계정 ID 금지)
+#   spec.tls.hosts 이름으로 LB Controller가 ACM(ap-northeast-2)에서 찾는다. 인증서·origin. DNS·SG 443은 SeatSAC Terraform
+#   (envs/staging origin_https.tf, api_origin_https = "prepare") → 그 apply 뒤에만 이 변경을 머지한다(인증서가 없으면 조정 실패).
+#   80 리스너는 CloudFront 전환을 확인한 뒤 따로 지운다. rules에는 host를 두지 않는다(CloudFront가 뷰어 Host를 그대로 넘긴다)
 #   블루/그린: ALB는 active Service gateway의 엔드포인트(파드 IP)로 보낸다. Rollout이 전환하면 대상이 바뀐다
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -16,7 +20,8 @@ metadata:
     alb.ingress.kubernetes.io/load-balancer-name: cinema-staging-gateway
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
     alb.ingress.kubernetes.io/security-groups: cinema-staging-alb
     alb.ingress.kubernetes.io/manage-backend-security-group-rules: "false"
     alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
@@ -30,6 +35,9 @@ metadata:
     alb.ingress.kubernetes.io/tags: Project=cinema,Env=staging,ManagedBy=aws-load-balancer-controller
 spec:
   ingressClassName: alb
+  tls:
+    - hosts:
+        - origin.seatsac.com
   rules:
     - http:
         paths:
