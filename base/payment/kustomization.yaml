@@ -5,4 +5,5 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - podmonitor.yaml
+  - externalsecret.yaml   # 6.1.4 Secrets Manager → payment-secrets (wave -3)
   - flyway-job.yaml

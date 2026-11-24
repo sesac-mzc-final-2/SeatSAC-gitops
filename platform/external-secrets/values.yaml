@@ -1,0 +1,28 @@
+# External Secrets Operator (6.1.4, SeatSAC ADR-123). Secrets Manager cinema/staging/* → K8s Secret {svc}-secrets
+# 자격 증명은 EKS Pod Identity(cinema-staging-external-secrets-pod, SeatSAC Terraform envs/staging/external_secrets.tf):
+#   namespace external-secrets · ServiceAccount external-secrets 에 연결돼 있다 → 아래 이름을 바꾸면 Terraform도 같이 바꾼다
+fullnameOverride: external-secrets
+installCRDs: true
+replicaCount: 1               # 노드 2대. 컨트롤러가 잠깐 없어도 이미 만든 Secret은 그대로다(다시 읽기만 늦어진다)
+serviceAccount:
+  create: true
+  name: external-secrets      # Pod Identity 연결과 같은 이름
+
+# 쓰지 않는 기능은 끈다(CRD·컨트롤러 감시 대상이 줄어든다): 클러스터 → 바깥으로 쓰기(Push), 클러스터 범위 ExternalSecret
+processPushSecret: false
+processClusterPushSecret: false
+processClusterExternalSecret: false
+
+resources:
+  requests: { cpu: 20m, memory: 96Mi }
+  limits: { memory: 192Mi }
+webhook:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 128Mi }
+certController:
+  replicaCount: 1
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 128Mi }
