@@ -1,5 +1,5 @@
 # root 앱(cinema-root)이 이 폴더를 sync한다. root와 서비스 Application은 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf, 3.1.5)
-# 순서(sync-wave): project(-20) → argo-rollouts·kube-prometheus-stack·external-secrets(-10, CRD) → ClusterSecretStore(-8) → cinema-common(-5) → cinema-observability(-4)
+# 순서(sync-wave): project(-20) → argo-rollouts·kube-prometheus-stack·external-secrets(-10, CRD) → ClusterSecretStore(-8) → Karpenter NodePool·EC2NodeClass(-7) → cinema-common(-5) → cinema-observability(-4)
 #   → loki(5) → alloy(6) (3.1.24 — 맨 뒤라 S3·권한 문제로 Loki가 멈춰도 앞 앱 sync를 막지 않는다)
 #   ArgoCD가 Application health를 계산하게 해 두어(envs/staging-k8s/argocd.tf) 앞 wave가 Healthy가 된 뒤 다음으로 간다
 # 서비스 Application 5개(cinema-{gateway,catalog,booking,user,payment})는 여기 없다:
@@ -13,6 +13,7 @@ resources:
   - platform-kube-prometheus-stack.yaml
   - platform-external-secrets.yaml   # 6.1.4 (-10)
   - clustersecretstore.yaml          # 6.1.4 (-8)
+  - ../../platform/karpenter         # 6.1.6 NodePool·EC2NodeClass (-7). 컨트롤러·CRD는 SeatSAC Terraform(envs/staging-k8s/karpenter.tf)
   - cinema-common.yaml
   - cinema-observability.yaml
   - platform-loki.yaml

@@ -1,0 +1,40 @@
+# 6.1.6 Karpenter 노드 모양 — 관리형 노드(ng-a·ng-c)와 같은 AL2023 · 같은 app 서브넷 · 같은 노드 보안그룹
+#   서브넷·보안그룹은 태그로 찾는다(SeatSAC Terraform network.tf·eks.tf가 karpenter.sh/discovery를 붙인다) → ID·ARN·계정 ID 없음
+#   같은 보안그룹이라 ALB → gateway 8080 규칙, app 서브넷이라 RDS·Valkey(서브넷 CIDR 규칙)가 그대로 맞는다
+#   role은 IAM 역할 **이름**(SeatSAC envs/staging karpenter.tf node_iam_role_name) — Access Entry도 Terraform이 만든다
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "-7"                                   # 컨트롤러·CRD(Terraform) 뒤, cinema-common(-5)·서비스 앱 전
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true   # 빈 클러스터에서 CRD가 아직 없을 때 dry-run으로 멈추지 않게
+spec:
+  role: cinema-staging-karpenter-node
+  # 최신 AL2023. 노드는 밤마다 지워지고 아침에 새로 떠서 새 AMI는 그때 반영된다 —
+  # 낮에 AMI가 바뀌어도(Drifted) 교체하지 않는다(nodepool.yaml disruption.budgets)
+  amiSelectorTerms:
+    - alias: al2023@latest
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: cinema-staging-eks
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: cinema-staging-eks
+  metadataOptions:
+    httpTokens: required          # IMDSv2만. 파드 권한은 Pod Identity(169.254.170.23)라 IMDS 홉을 늘리지 않는다
+    httpPutResponseHopLimit: 1
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi          # 관리형 노드그룹 기본과 같다
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+  # 비용·리소스 추적 태그(SeatSAC conventions 9장 AWS 태그). Karpenter가 kubernetes.io/cluster/…·karpenter.sh/nodepool 태그는 따로 붙인다
+  #   — 밤 정리 Lambda(cinema-staging-karpenter-sweep)는 그 두 태그로만 지운다
+  tags:
+    Project: cinema
+    Env: staging
+    ManagedBy: karpenter
+    Name: cinema-staging-karpenter-node
