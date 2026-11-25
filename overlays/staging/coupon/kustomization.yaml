@@ -1,0 +1,40 @@
+# coupon staging 값 (6.1.5). 이 레포는 Public → 계정 ID·엔드포인트·키를 쓰지 않는다 (gitops-validate가 막는다)
+#   - 이미지 태그: ./image-tag (SeatSAC build-push가 newTag만 커밋. 사람이 직접 바꾸지 않는다, 롤백은 revert PR)
+#   - 레지스트리 주소: ArgoCD Application cinema-coupon(SeatSAC Terraform envs/staging-k8s/argocd_apps.tf, coupon_enabled)의 kustomize.images
+#   - ${DB_HOST_COUPON} 같은 값: Terraform ConfigMap cinema-infra-endpoints를 파드가 envFrom으로 같이 받고 Spring이 기동 때 치환한다
+#   - Secret 값은 여기 두지 않는다 (coupon-secrets·coupon-migrator-secrets는 Terraform → 6.1.4 ESO)
+#   - 이름은 SeatSAC docs/service-runtime-contract.md 3장 coupon 행 그대로
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cinema-staging
+resources:
+  - ../../../base/coupon
+components:
+  - ./image-tag                   # 태그만. 레지스트리는 ArgoCD가 이 overlay에 images(이름만)로 붙인다
+generatorOptions:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"     # Flyway Job(-1)보다 먼저
+configMapGenerator:
+  - name: coupon-config
+    literals:
+      - SPRING_PROFILES_ACTIVE=staging
+      - AWS_REGION=ap-northeast-2
+      # 처음부터 자기 인스턴스 cinema-staging-coupon-db (ADR-115) — 기존 인스턴스(DB_HOST)에는 coupon_db가 없다
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST_COUPON}:3306/coupon_db?connectionTimeZone=UTC&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/truststore/rds-ca.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=rds-ca-truststore
+      - SPRING_DATASOURCE_USERNAME=coupon_app
+      - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5     # data-model 7-1: 최대 4 × 5 = 20 (micro 경보 45)
+      - SPRING_FLYWAY_ENABLED=false                      # 마이그레이션은 Flyway 훅 Job
+      - APP_FLYWAY_ON_STARTUP=false                      # 앱 application.yml의 같은 스위치(둘 다 끈다)
+      # 재고 coupon:stock · 멱등 coupon:idem — 기존 Valkey (conventions 4장)
+      - SPRING_DATA_REDIS_HOST=${VALKEY_HOST}
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_SSL_ENABLED=true
+      - APP_COUPON_IDEMPOTENCY_TTL=24h
+      - APP_COUPON_RESERVED_ALARM_AFTER=1h
+      - APP_COUPON_SWEEP_INTERVAL=1m
+      # saga 명령 수신·결과 발송 (ADR-117). 큐·Pod Identity(6.1.3)가 있고 coupon이 뜬 것을 확인한 뒤 gitops PR로 둘 다 true
+      #   소비자만 켜고 릴레이를 끄면 결과가 PENDING으로 쌓인다(켜는 순간 흘러간다). 켜기 전에는 booking 쿠폰 어댑터를 sqs로 두지 않는다
+      - APP_MESSAGING_COMMANDS_URL=${SQS_COUPON_COMMANDS_URL}
+      - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
+      - APP_MESSAGING_CONSUMER_ENABLED=false
+      - APP_OUTBOX_RELAY_ENABLED=false
