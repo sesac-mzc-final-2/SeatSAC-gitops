@@ -44,4 +44,7 @@ configMapGenerator:
       - APP_SEAT_HOLD_STRATEGY=redis
       - APP_OUTBOX_RELAY_INTERVAL=1s
       - APP_OUTBOX_RELAY_ENABLED=true   # 3.2.6 예매 완료 알림 아웃박스 → SQS 릴레이(SeatSAC 런북 6-B-3, 6-B-5 끝에서 끝 확인 11/11). 풀 15와 한 커밋 = booking 블루/그린 1회
+      # 6.2.4 SNS booking-events(D28·D29) — booking.confirmed·booking.canceled를 user 예매 내역 복제본으로. 값은 Terraform cinema-infra-endpoints
+      #   비어 있으면 booking이 이벤트 행을 만들지 않는다(SeatSAC 런타임 계약 3장). 토픽(6.1.3)이 있는 계정에서만 머지 — 없으면 10회 재시도 끝에 FAILED
+      - APP_MESSAGING_EVENTS_TOPIC_ARN=${SNS_BOOKING_EVENTS_ARN}
       - APP_DEMO_REVISION=t1-1120   # 앱이 읽지 않는 값. 바꾸면 ConfigMap 해시가 바뀌어 booking 블루/그린 1회(4.2.2 T1 시연·녹화용). 계약 3장 반영 예정
