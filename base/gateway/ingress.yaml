@@ -9,6 +9,11 @@
 #   (envs/staging origin_https.tf, api_origin_https = "prepare") → 그 apply 뒤에만 이 변경을 머지한다(인증서가 없으면 조정 실패).
 #   80 리스너는 CloudFront 전환을 확인한 뒤 따로 지운다. rules에는 host를 두지 않는다(CloudFront가 뷰어 Host를 그대로 넘긴다)
 #   블루/그린: ALB는 active Service gateway의 엔드포인트(파드 IP)로 보낸다. Rollout이 전환하면 대상이 바뀐다
+#   🆕 /ops → ops-api (6.1.7, SeatSAC ADR-119): CloudFront /ops/* → 이 ALB → ops-api:8080. gateway를 거치지 않는다
+#     (gateway를 정지해도 관리자 화면이 동작해야 해서). IngressGroup으로 묶지 않고 이 Ingress에 경로를 더한다 —
+#     묶으면 LB Controller 스택이 바뀌어 ALB가 새로 만들어지고 CloudFront 원본·origin. DNS가 바뀐다.
+#     경로는 위에서부터 규칙 순서다: /ops가 / 보다 먼저. ops-api Service가 없으면 컨트롤러가 이 Ingress 전체를 조정하지 못하므로
+#     ops-api(base/ops-api, Application cinema-ops-api)가 Synced·Healthy가 된 뒤에 머지한다. 헬스 체크 경로는 같다(/actuator/health/readiness)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -41,6 +46,12 @@ spec:
   rules:
     - http:
         paths:
+          - path: /ops
+            pathType: Prefix
+            backend:
+              service:
+                name: ops-api
+                port: { name: http }
           - path: /
             pathType: Prefix
             backend:
