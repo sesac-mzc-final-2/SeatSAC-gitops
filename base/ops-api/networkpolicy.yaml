@@ -1,0 +1,22 @@
+# ops-api 인바운드 허용 (런타임 계약 6장 🆕 행, 6.1.7). egress는 막지 않는다(Kubernetes API·Prometheus·ai·coupon·Cognito·AWS)
+#   ALB(public 서브넷 2개 — gateway 정책과 같은 값, SeatSAC staging.tfvars public_subnets) · Prometheus 수집만
+#   ops-api는 토큰(ADMIN 그룹)을 직접 검증하지만, 클러스터 안 다른 파드가 붙을 이유가 없어 막는다
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ops-api-ingress
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: ops-api }
+  policyTypes: [Ingress]
+  ingress:
+    - from:                                   # ALB(target-type ip) — CloudFront /ops/* → ALB /ops 규칙
+        - ipBlock: { cidr: 10.20.0.0/24 }
+        - ipBlock: { cidr: 10.20.1.0/24 }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # Prometheus 수집
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 8080, protocol: TCP }]
