@@ -1,0 +1,25 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coupon
+  labels:
+    app.kubernetes.io/name: coupon
+    app.kubernetes.io/part-of: cinema
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coupon
+  minReplicas: 2       # 6.1.5 런타임 계약 2장 — AZ 하나가 죽어도 남게(topologySpread)
+  maxReplicas: 4
+  # 늘릴 때는 1분에 1개씩(노드 2대 — 한 번에 4개로 뛰면 메모리가 모자라 다른 서비스가 밀린다). 줄일 때는 기본(5분 안정화)
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - { type: Pods, value: 1, periodSeconds: 60 }
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

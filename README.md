@@ -25,6 +25,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 │   ├── common/                    앱 namespace 인바운드 기본 거부 + analysis
 │   ├── gateway/  booking/         Rollout(블루/그린) · Service · preview Service · NetworkPolicy · PodMonitor (gateway는 + Ingress → ALB)
 │   ├── catalog/  user/  payment/  Deployment(롤링) · Service · NetworkPolicy · PodMonitor
+│   ├── coupon/                    🆕 6.1.5 Deployment(롤링) · ServiceAccount · HPA · NetworkPolicy · PodMonitor · ExternalSecret · Flyway Job (DB는 처음부터 DB_HOST_COUPON)
 │   ├── {catalog,booking,user,payment}/flyway-job.yaml   DB 마이그레이션 훅 Job (gateway는 DB 없음)
 │   └── ai/                        ⚠️AI Deployment(롤링, ng-ai 노드에만) · Service · NetworkPolicy · PodMonitor (DB·HPA 없음)
 ├── overlays/staging/{svc}/        staging 값: ConfigMap {svc}-config (엔드포인트는 ${키}만)
@@ -42,6 +43,7 @@ SeatSAC staging 배포 상태를 담는 레포다. ArgoCD가 이 레포의 `main
 | catalog | Deployment 롤링 | 1 / 1~4 | 200m·448Mi / 640Mi | gateway·booking·user |
 | user | Deployment 롤링 | 1 / 1~2 | 150m·384Mi / 576Mi | gateway |
 | payment | Deployment 롤링 | 1 / 없음 | 150m·384Mi / 576Mi | booking |
+| 🆕 coupon (6.1.5) | Deployment 롤링 · ServiceAccount `coupon`(Pod Identity — SQS) | 2 / 2~4 | 200m·448Mi / 640Mi | gateway · ops-api(6.1.7, 라벨로 미리 허용) |
 | ⚠️AI ai | Deployment 롤링 · `ng-ai`만 (nodeSelector + toleration `cinema/workload=ai`) | 1 / 없음 | 250m·1Gi / 1.5Gi | gateway |
 
 모든 서비스: monitoring namespace → 8080 허용, egress 제한 없음. 그 밖은 `base/common/default-deny-ingress.yaml`이 막는다(3.1.13).

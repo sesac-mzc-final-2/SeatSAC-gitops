@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: coupon
+  labels:
+    app.kubernetes.io/name: coupon
+    app.kubernetes.io/part-of: cinema
+spec:
+  selector: { app.kubernetes.io/name: coupon }
+  ports:
+    - { name: http, port: 8080, targetPort: http }

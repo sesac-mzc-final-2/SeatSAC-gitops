@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceaccount.yaml   # Pod Identity cinema-staging-coupon-pod (SQS)
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml              # 2~4, CPU 70%
+  - networkpolicy.yaml
+  - podmonitor.yaml
+  - externalsecret.yaml   # 6.1.4 Secrets Manager → coupon-secrets·coupon-migrator-secrets (wave -3)
+  - flyway-job.yaml

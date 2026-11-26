@@ -1,0 +1,23 @@
+# coupon 인바운드 허용 (SeatSAC docs/service-runtime-contract.md 6장 「NetworkPolicy 추가 (11/23)」, 6.1.5). egress는 막지 않는다
+#   saga 명령·결과는 SQS(클러스터 밖)라 booking → coupon 규칙은 없다
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: coupon-ingress
+  labels:
+    app.kubernetes.io/name: coupon
+    app.kubernetes.io/part-of: cinema
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: coupon }
+  policyTypes: [Ingress]
+  ingress:
+    - from:                                   # 외부 API /api/coupons/** (CPN-01~03)
+        - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # 관리자 이벤트 생성·목록 /internal/coupon-events (6.1.7 ops-api — 파드가 생기기 전에도 라벨로 미리 허용)
+        - podSelector: { matchLabels: { app.kubernetes.io/name: ops-api } }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # Prometheus 수집
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 8080, protocol: TCP }]
