@@ -47,4 +47,11 @@ configMapGenerator:
       # 6.2.4 SNS booking-events(D28·D29) — booking.confirmed·booking.canceled를 user 예매 내역 복제본으로. 값은 Terraform cinema-infra-endpoints
       #   비어 있으면 booking이 이벤트 행을 만들지 않는다(SeatSAC 런타임 계약 3장). 토픽(6.1.3)이 있는 계정에서만 머지 — 없으면 10회 재시도 끝에 FAILED
       - APP_MESSAGING_EVENTS_TOPIC_ARN=${SNS_BOOKING_EVENTS_ARN}
+      # 6.2.1 체크아웃 saga(ADR-116·117, SeatSAC 런타임 계약 3장·런북 6-D-6). 큐 주소는 Terraform cinema-infra-endpoints
+      #   payment saga 소비자(payment-config APP_MESSAGING_CONSUMER_ENABLED)가 켜진 뒤 머지 — 명령을 받을 쪽이 먼저
+      #   쿠폰은 none 그대로(APP_CHECKOUT_COUPON_ADAPTER 기본) — 쿠폰을 주면 COUPON_REJECTED. coupon 배포 뒤 sqs
+      - APP_CHECKOUT_SAGA_ENABLED=true
+      - APP_MESSAGING_CONSUMER_ENABLED=true
+      - APP_MESSAGING_PAYMENT_COMMANDS_URL=${SQS_PAYMENT_COMMANDS_URL}
+      - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
       - APP_DEMO_REVISION=t1-1120   # 앱이 읽지 않는 값. 바꾸면 ConfigMap 해시가 바뀌어 booking 블루/그린 1회(4.2.2 T1 시연·녹화용). 계약 3장 반영 예정
