@@ -1,5 +1,7 @@
 # ⚠️AI ai (Python FastAPI, 3.1.20, ADR-86·87). 런타임 계약 9장
-#   다른 5개 서비스와 다른 점: Flyway Job 없음(DB 없음) · HPA 없음(replicas 1 고정) · ng-ai 노드에만(nodeSelector + toleration)
+#   다른 5개 서비스와 다른 점: HPA 없음(replicas 1 고정) · ng-ai 노드에만(nodeSelector + toleration)
+#   🆕 6.4.1: ai_db 비밀번호 ExternalSecret · RDS CA 마운트(수요 저장·통계, 플래그 APP_AI_UNMET_DEMAND_ENABLED 기본 false).
+#     Flyway Job(ai-flyway)은 ai 이미지에 /app/db/migration이 들어간 뒤 별도 PR
 #   Application cinema-ai는 SeatSAC Terraform(envs/staging-k8s/argocd_apps.tf, 3.1.18)이 만든다 — 이 레포에는 없다
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -8,3 +10,4 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - podmonitor.yaml
+  - externalsecret.yaml          # 6.4.1 ai_db 비밀번호(ai-secrets에 Merge)·ai-migrator-secrets

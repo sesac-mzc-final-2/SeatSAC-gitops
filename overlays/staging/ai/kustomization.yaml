@@ -37,3 +37,6 @@ configMapGenerator:
       - APP_AI_SEMANTIC_THRESHOLD=0.92
       - APP_AI_LIMIT_PER_MINUTE=600               # 사실상 없음 — 동시 1건 잠금이 남아 있어 한 사람이 분당 수십 건을 넘기 어렵다(11/18 발표 전 테스트)
       - APP_AI_LIMIT_PER_DAY=300                  # 100 → 300 (발표 전 테스트·시연 연습). 월 지출 한도 $90 은 그대로
+      # 🆕 6.4.1 수요 저장·통계(런타임 계약 9-1). DB_HOST_AI는 cinema-infra-endpoints, 비밀번호는 ai-secrets(ExternalSecret)
+      - APP_AI_DB_SSL_CA=/etc/rds-ca/rds-ca.pem    # base/ai/deployment.yaml의 rds-ca 마운트
+      - APP_AI_UNMET_DEMAND_ENABLED=false         # ai-flyway(별도 PR)로 테이블이 생긴 뒤 true
