@@ -20,7 +20,7 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation   # 다음 sync 전에 지움 → 실패 로그는 남아 있다
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: 300
+  activeDeadlineSeconds: 600        # ai 이미지는 임베딩 모델이 들어 있어 크다 — ng-ai가 아닌 일반 노드에서 처음 받는 시간까지(다른 서비스 300)
   template:
     metadata:
       labels:
@@ -70,6 +70,7 @@ spec:
             - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true   # 쓰기는 /tmp(HOME)뿐 — coupon-flyway와 같다(gitops #43, flyway 11.7.2 --read-only 확인)
             capabilities: { drop: ["ALL"] }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
