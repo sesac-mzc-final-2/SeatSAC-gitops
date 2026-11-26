@@ -1,0 +1,78 @@
+# ops-api 권한 (런타임 계약 10장) — 읽기 + replicas 바꾸기만. 파드 삭제·exec·Secret 읽기·Deployment 수정은 없다
+#   */scale 하위 리소스만 patch할 수 있어 이미지·환경변수·명령은 바꿀 수 없다
+#   ConfigMap은 ops-api-state 하나만(정지 전 replicas 기록, resourceNames로 제한)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ops-api
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["rollouts"]
+    verbs: ["get", "list"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["rollouts/scale"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["ops-api-state"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ops-api
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ops-api
+subjects:
+  - kind: ServiceAccount
+    name: ops-api
+    namespace: cinema-staging
+---
+# 노드는 클러스터 범위 리소스라 Role로 줄 수 없다 — 읽기만(OPS-20 노드 영역·CPU·용량 종류)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cinema-ops-api-nodes
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cinema-ops-api-nodes
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cinema-ops-api-nodes
+subjects:
+  - kind: ServiceAccount
+    name: ops-api
+    namespace: cinema-staging
