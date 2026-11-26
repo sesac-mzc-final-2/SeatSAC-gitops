@@ -76,6 +76,7 @@ spec:
             - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true   # 쓰기는 /tmp(HOME)뿐 — flyway 11.7.2를 --read-only로 coupon 마이그레이션까지 돌려 확인(#43 리뷰)
             capabilities: { drop: ["ALL"] }
           resources:
             requests: { cpu: 100m, memory: 256Mi }
