@@ -21,6 +21,7 @@ spec:
         app.kubernetes.io/part-of: cinema
     spec:
       terminationGracePeriodSeconds: 35
+      serviceAccountName: payment           # Pod Identity → saga 명령 수신·결과 발송 권한 (6.1.3, serviceaccount.yaml)
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
