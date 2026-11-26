@@ -10,7 +10,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: catalog
-  minReplicas: 1
+  # 6.1.10 ADR-122: 핵심 서비스 최소 2 — AZ마다 하나(topologySpread). AZ 하나가 죽어도 0개가 되지 않게(SeatSAC 런타임 계약 2장)
+  minReplicas: 2
   maxReplicas: 4
   # 늘릴 때는 1분에 1개씩(노드 2대 — 한 번에 4개로 뛰면 메모리가 모자라 다른 서비스가 밀린다). 줄일 때는 기본(5분 안정화)
   behavior:

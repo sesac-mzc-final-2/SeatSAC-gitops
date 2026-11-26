@@ -10,7 +10,9 @@ spec:
     apiVersion: argoproj.io/v1alpha1
     kind: Rollout
     name: booking
-  minReplicas: 1
+  # 6.1.10 ADR-122: 핵심 서비스 최소 2 — AZ마다 하나(topologySpread). AZ 하나가 죽어도 0개가 되지 않게(SeatSAC 런타임 계약 2장)
+  #   최대 2는 그대로 — 블루/그린 전환 순간 4개 × 풀 15 = 60(자기 인스턴스 경보 130 안). 계약의 2~4는 시연 뒤 따로
+  minReplicas: 2
   # 11/12 4 → 2 (노션 ADR-96): 블루/그린 전환 순간 preview가 active 수까지 늘어 booking 파드가 2배가 된다.
   #   4개면 8개 × 풀 15 = 120 + 다른 서비스 35 = RDS 연결 155 > 경보 130(한도 약 170), requests 2 vCPU.
   #   2개면 4개 × 15 + 35 = 95. SeatSAC 런타임 계약 2장·3장
