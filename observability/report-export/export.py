@@ -79,14 +79,19 @@ def loki_page(base: str, query: str, start_ns: int, end_ns: int) -> list[tuple[i
 
 
 def fetch_window(base: str, query: str, start: datetime, end: datetime) -> list[dict]:
-    """[start, end) 구간 전부. 한 번에 PAGE_LIMIT를 넘으면 마지막 시각 다음부터 이어 받는다."""
+    """[start, end) 구간 전부. 한 번에 PAGE_LIMIT를 넘으면 마지막 시각부터 이어 받는다.
+
+    중복 제거 키는 (시각, 스트림 라벨, 줄) — 다른 스트림(app)의 같은 시각·같은 줄은 서로 다른 행이다.
+    한 나노초에 PAGE_LIMIT줄이 넘으면 그 시각의 나머지를 받을 방법이 없어 **실패**한다 — 불완전한 파일을 올리지 않는다
+    (initContainer가 실패하면 업로드 컨테이너가 돌지 않는다. 다음 실행이 같은 시간을 다시 만든다).
+    """
     start_ns = int(start.timestamp() * 1e9)
     end_ns = int(end.timestamp() * 1e9) - 1
     rows, seen = [], set()
     while start_ns <= end_ns:
         page = loki_page(base, query, start_ns, end_ns)
         for ts, line, labels in page:
-            key = (ts, line)
+            key = (ts, tuple(sorted(labels.items())), line)
             if key in seen:
                 continue
             seen.add(key)
@@ -95,9 +100,9 @@ def fetch_window(base: str, query: str, start: datetime, end: datetime) -> list[
                 rows.append(row)
         if len(page) < PAGE_LIMIT:
             break
+        if page[0][0] == page[-1][0]:
+            raise RuntimeError(f"한 시각({page[0][0]}ns)에 {PAGE_LIMIT}줄 이상 — 나머지를 받을 수 없어 이 구간을 내보내지 않는다")
         start_ns = page[-1][0]  # 같은 ns의 나머지 줄을 놓치지 않게 마지막 시각부터 다시(seen으로 중복 제거)
-        if len(page) == PAGE_LIMIT and page[0][0] == page[-1][0]:
-            start_ns += 1  # 한 ns에 PAGE_LIMIT줄 — 다음으로 넘어간다(무한 반복 방지)
     return rows
 
 

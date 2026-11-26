@@ -59,6 +59,23 @@ class FetchAndWrite(unittest.TestCase):
         self.assertEqual(page.call_count, 2)
         self.assertEqual(len(rows), export.PAGE_LIMIT + 1)  # 겹친 마지막 줄은 한 번만
 
+    def test_same_time_and_line_in_two_streams_are_two_rows(self):
+        start = datetime(2026, 11, 27, 1, tzinfo=export.KST)
+        ts = int(start.timestamp() * 1e9)
+        same = line(errorCategory="TIMEOUT", message="x")
+        page = [(ts, same, {"app": "booking"}), (ts, same, {"app": "gateway"})]
+        with mock.patch.object(export, "loki_page", return_value=page):
+            rows = export.fetch_window("http://loki", "q", start, start.replace(hour=2))
+        self.assertEqual(len(rows), 2)
+
+    def test_full_page_at_one_instant_fails_instead_of_dropping(self):
+        start = datetime(2026, 11, 27, 1, tzinfo=export.KST)
+        ts = int(start.timestamp() * 1e9)
+        page = [(ts, line(errorCategory="TIMEOUT", message=str(i)), {}) for i in range(export.PAGE_LIMIT)]
+        with mock.patch.object(export, "loki_page", return_value=page):
+            with self.assertRaises(RuntimeError):
+                export.fetch_window("http://loki", "q", start, start.replace(hour=2))
+
     def test_write_hour_kst_partition_and_empty(self):
         start = datetime(2026, 11, 26, 16, tzinfo=timezone.utc)  # KST 11/27 01시
         with tempfile.TemporaryDirectory() as d:
