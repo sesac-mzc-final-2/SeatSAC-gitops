@@ -26,3 +26,7 @@ configMapGenerator:
       - SPRING_FLYWAY_ENABLED=false
       - APP_SERVICES_BOOKING_URL=http://booking:8080
       - APP_SERVICES_CATALOG_URL=http://catalog:8080
+      # 6.3.4b 예매 내역 복제본(SeatSAC #220) — 받는 쪽 먼저: 소비자를 켜고 Healthy·큐 비는 것을 본 뒤 booking SNS 발행
+      #   APP_BOOKING_HISTORY_MODE=local(복제본 읽기)은 다음 PR. 여기서는 복제본을 채우기만 한다(응답은 그대로 sync)
+      - APP_MESSAGING_BOOKING_EVENTS_URL=${SQS_USER_BOOKING_EVENTS_URL}
+      - APP_MESSAGING_CONSUMER_ENABLED=true
