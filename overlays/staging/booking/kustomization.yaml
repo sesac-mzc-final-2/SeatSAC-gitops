@@ -49,9 +49,12 @@ configMapGenerator:
       - APP_MESSAGING_EVENTS_TOPIC_ARN=${SNS_BOOKING_EVENTS_ARN}
       # 6.2.1 체크아웃 saga(ADR-116·117, SeatSAC 런타임 계약 3장·런북 6-D-6). 큐 주소는 Terraform cinema-infra-endpoints
       #   payment saga 소비자(payment-config APP_MESSAGING_CONSUMER_ENABLED)가 켜진 뒤 머지 — 명령을 받을 쪽이 먼저
-      #   쿠폰은 none 그대로(APP_CHECKOUT_COUPON_ADAPTER 기본) — 쿠폰을 주면 COUPON_REJECTED. coupon 배포 뒤 sqs
+      #   쿠폰 어댑터 sqs(SeatSAC #207) — coupon 소비자·릴레이(coupon-config)가 켜진 뒤. 어댑터와 큐 주소는 한 PR로(주소 없이 sqs면 명령 발송 실패)
+      #   되돌리기는 APP_CHECKOUT_COUPON_ADAPTER=none(쿠폰을 주면 COUPON_REJECTED)
       - APP_CHECKOUT_SAGA_ENABLED=true
       - APP_MESSAGING_CONSUMER_ENABLED=true
       - APP_MESSAGING_PAYMENT_COMMANDS_URL=${SQS_PAYMENT_COMMANDS_URL}
       - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
+      - APP_CHECKOUT_COUPON_ADAPTER=sqs
+      - APP_MESSAGING_COUPON_COMMANDS_URL=${SQS_COUPON_COMMANDS_URL}
       - APP_DEMO_REVISION=t1-1120   # 앱이 읽지 않는 값. 바꾸면 ConfigMap 해시가 바뀌어 booking 블루/그린 1회(4.2.2 T1 시연·녹화용). 계약 3장 반영 예정
