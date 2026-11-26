@@ -1,0 +1,8 @@
+# 6.1.6 Karpenter 노드 설정 (SeatSAC ADR-122). root 앱(cinema-root)이 apps/staging에서 이 폴더를 같이 sync한다
+# 컨트롤러·CRD는 SeatSAC Terraform(envs/staging-k8s/karpenter.tf, OCI 차트) — 여기에는 NodePool·EC2NodeClass만 둔다
+# 클러스터 범위 리소스라 namespace를 붙이지 않는다. 운영(시연 중 disruption 0·밤 끄기·되돌리기)은 SeatSAC 런북 6-K
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ec2nodeclass.yaml
+  - nodepool.yaml
