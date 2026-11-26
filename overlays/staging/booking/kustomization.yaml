@@ -34,6 +34,9 @@ configMapGenerator:
       - SPRING_DATA_REDIS_HOST=${VALKEY_HOST}
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_DATA_REDIS_SSL_ENABLED=true
+      # 6.2.7 결제 비교 측정 — Tomcat 스레드 지표(tomcat_threads_busy_threads)를 낸다. 측정 2(PG 느림)에서 동기 경로가 스레드를 무는지 본다
+      #   (대시보드 「SeatSAC 결제 비교 측정」 ③). 앱 동작은 바뀌지 않는다
+      - SERVER_TOMCAT_MBEANREGISTRY_ENABLED=true
       - APP_SERVICES_CATALOG_URL=http://catalog:8080
       - APP_SERVICES_PAYMENT_URL=http://payment:8080
       # 포트원 verify·cancel만 응답 대기 10초(포트원 최대 약 8초 < 10초 < gateway 15초) · 결제 요청이 붙은 PENDING 만료 유예 2분 (ADR-112, 런타임 계약 3장)

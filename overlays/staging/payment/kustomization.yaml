@@ -23,6 +23,8 @@ configMapGenerator:
       - SPRING_DATASOURCE_USERNAME=payment_app
       - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
       - SPRING_FLYWAY_ENABLED=false
+      # 6.2.7 결제 비교 측정 — Tomcat 스레드 지표(동기 경로 payment 스레드 비교). 앱 동작은 바뀌지 않는다
+      - SERVER_TOMCAT_MBEANREGISTRY_ENABLED=true
       - APP_PAYMENT_MOCK_DELAY_CARD=9999
       - APP_PAYMENT_MOCK_DELAY=5s
       # 포트원 토스페이 (ADR-112, SeatSAC 런타임 계약 3장·런북 6-I). Secret(APP_PORTONE_API_SECRET·WEBHOOK_SECRET)이 들어간 뒤 켠다
