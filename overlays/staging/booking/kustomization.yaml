@@ -34,6 +34,9 @@ configMapGenerator:
       - SPRING_DATA_REDIS_HOST=${VALKEY_HOST}
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_DATA_REDIS_SSL_ENABLED=true
+      # 6.2.7 결제 비교 측정 — Tomcat 스레드 지표(tomcat_threads_busy_threads)를 낸다. 측정 2(PG 느림)에서 동기 경로가 스레드를 무는지 본다
+      #   (대시보드 「SeatSAC 결제 비교 측정」 ③). 앱 동작은 바뀌지 않는다
+      - SERVER_TOMCAT_MBEANREGISTRY_ENABLED=true
       - APP_SERVICES_CATALOG_URL=http://catalog:8080
       - APP_SERVICES_PAYMENT_URL=http://payment:8080
       # 포트원 verify·cancel만 응답 대기 10초(포트원 최대 약 8초 < 10초 < gateway 15초) · 결제 요청이 붙은 PENDING 만료 유예 2분 (ADR-112, 런타임 계약 3장)
@@ -54,4 +57,7 @@ configMapGenerator:
       - APP_MESSAGING_CONSUMER_ENABLED=true
       - APP_MESSAGING_PAYMENT_COMMANDS_URL=${SQS_PAYMENT_COMMANDS_URL}
       - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
+      # 6.2.7 비교 측정 — 결과 소비자 동시 처리 수 10 → 200(payment와 같이). 결과 반영(예매 확정·좌석·아웃박스)이 booking에서
+      #   일어나 10이면 booking 쪽 줄 때문에 확정까지 시간이 길어진다. 연결 풀 15라 대시보드 ③ DB 연결 대기를 같이 본다(설계 05 1장)
+      - APP_MESSAGING_MAX_CONCURRENT=200
       - APP_DEMO_REVISION=t1-1120   # 앱이 읽지 않는 값. 바꾸면 ConfigMap 해시가 바뀌어 booking 블루/그린 1회(4.2.2 T1 시연·녹화용). 계약 3장 반영 예정
