@@ -19,7 +19,8 @@ configMapGenerator:
     literals:
       - SPRING_PROFILES_ACTIVE=staging
       - AWS_REGION=ap-northeast-2
-      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST}:3306/user_db?connectionTimeZone=UTC&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/truststore/rds-ca.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=rds-ca-truststore
+      # 6.1.5 자기 인스턴스(DB_HOST_USER, ADR-115) — base/user/flyway-job.yaml의 호스트 키와 같은 PR에서. 쓰기 멈춤 → db-migrate.sh copy user PASS 뒤 머지(런북 8-E 3)
+      - SPRING_DATASOURCE_URL=jdbc:mysql://${DB_HOST_USER}:3306/user_db?connectionTimeZone=UTC&sslMode=VERIFY_IDENTITY&trustCertificateKeyStoreUrl=file:/truststore/rds-ca.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=rds-ca-truststore
       - SPRING_DATASOURCE_USERNAME=user_app
       - SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=5
       - SPRING_FLYWAY_ENABLED=false
