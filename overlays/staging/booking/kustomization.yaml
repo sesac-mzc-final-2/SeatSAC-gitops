@@ -52,11 +52,14 @@ configMapGenerator:
       - APP_MESSAGING_EVENTS_TOPIC_ARN=${SNS_BOOKING_EVENTS_ARN}
       # 6.2.1 체크아웃 saga(ADR-116·117, SeatSAC 런타임 계약 3장·런북 6-D-6). 큐 주소는 Terraform cinema-infra-endpoints
       #   payment saga 소비자(payment-config APP_MESSAGING_CONSUMER_ENABLED)가 켜진 뒤 머지 — 명령을 받을 쪽이 먼저
-      #   쿠폰은 none 그대로(APP_CHECKOUT_COUPON_ADAPTER 기본) — 쿠폰을 주면 COUPON_REJECTED. coupon 배포 뒤 sqs
+      #   쿠폰 어댑터 sqs(SeatSAC #207) — coupon 소비자·릴레이(coupon-config)가 켜진 뒤. 어댑터와 큐 주소는 한 PR로(주소 없이 sqs면 명령 발송 실패)
+      #   되돌리기는 APP_CHECKOUT_COUPON_ADAPTER=none(쿠폰을 주면 COUPON_REJECTED)
       - APP_CHECKOUT_SAGA_ENABLED=true
       - APP_MESSAGING_CONSUMER_ENABLED=true
       - APP_MESSAGING_PAYMENT_COMMANDS_URL=${SQS_PAYMENT_COMMANDS_URL}
       - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
+      - APP_CHECKOUT_COUPON_ADAPTER=sqs
+      - APP_MESSAGING_COUPON_COMMANDS_URL=${SQS_COUPON_COMMANDS_URL}
       # 6.2.7 비교 측정 — 결과 소비자 동시 처리 수 10 → 200(payment와 같이). 결과 반영(예매 확정·좌석·아웃박스)이 booking에서
       #   일어나 10이면 booking 쪽 줄 때문에 확정까지 시간이 길어진다. 연결 풀 15라 대시보드 ③ DB 연결 대기를 같이 본다(설계 05 1장)
       - APP_MESSAGING_MAX_CONCURRENT=200
