@@ -36,5 +36,5 @@ configMapGenerator:
       #   소비자만 켜고 릴레이를 끄면 결과가 PENDING으로 쌓인다(켜는 순간 흘러간다). 켜기 전에는 booking 쿠폰 어댑터를 sqs로 두지 않는다
       - APP_MESSAGING_COMMANDS_URL=${SQS_COUPON_COMMANDS_URL}
       - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
-      - APP_MESSAGING_CONSUMER_ENABLED=false
-      - APP_OUTBOX_RELAY_ENABLED=false
+      - APP_MESSAGING_CONSUMER_ENABLED=true   # 6.1.5 — coupon Healthy 확인 뒤. booking 쿠폰 어댑터 sqs(다음 PR)보다 먼저
+      - APP_OUTBOX_RELAY_ENABLED=true

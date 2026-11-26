@@ -42,7 +42,7 @@ spec:
           envFrom:
           - configMapRef: { name: cinema-infra-endpoints }   # Terraform(staging-k8s) — AI_VALKEY_HOST·PUBLIC_API_BASE_URL (Python은 ${} 치환이 없어 이름 그대로 읽는다)
           - configMapRef: { name: ai-config }
-          - secretRef: { name: ai-secrets }                  # Terraform(staging-k8s, 3.1.18) — ANTHROPIC_API_KEY
+          - secretRef: { name: ai-secrets }                  # Terraform(staging-k8s, 3.1.18) — ANTHROPIC_API_KEY · 🆕 ExternalSecret이 더한 APP_AI_DB_PASSWORD·APP_AI_QUERY_DB_PASSWORD(6.4.1)
           # readiness = 첫 스냅샷 적재 + ai Valkey PING (계약 9장). 임베딩 모델 로드·첫 적재를 기다려 startupProbe 150초
           startupProbe:
             httpGet: { path: /actuator/health/readiness, port: http }
@@ -68,6 +68,9 @@ spec:
             capabilities: { drop: ["ALL"] }
           volumeMounts:
             - { name: tmp, mountPath: /tmp }      # 쓰기는 /tmp만 (HOME=/tmp). SQLite는 :memory:
+            - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }   # 🆕 6.4.1 ai_db TLS 검증(APP_AI_DB_SSL_CA)
       volumes:
         - name: tmp
           emptyDir: { sizeLimit: 256Mi }          # 디스크에 쓰는 것이 거의 없다. 넘치면 파드를 내보내 노드 디스크를 지킨다
+        - name: rds-ca
+          configMap: { name: rds-ca-bundle }     # SeatSAC Terraform(envs/staging-k8s/rds_ca.tf)이 만든다 — gitops에 없음

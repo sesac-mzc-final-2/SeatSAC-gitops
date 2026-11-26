@@ -1,0 +1,14 @@
+# 정지 전 replicas 기록 — ops-api가 정지할 때 {서비스: replicas}를 적고, 가동할 때 지운다(ADR-119)
+#   data는 Git에서 비워 둔다. Application cinema-ops-api가 이 ConfigMap의 /data를 비교하지 않으므로
+#   (SeatSAC argocd_apps.tf ignoreDifferences + RespectIgnoreDifferences) sync·selfHeal이 기록을 지우지 않는다
+#   이름은 고정(해시 없음) — Role resourceNames·ops-api 설정 OPS_STATE_CONFIGMAP과 같다
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ops-api-state
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false   # Application을 다시 만들 때도 기록을 지우지 않는다
+data: {}

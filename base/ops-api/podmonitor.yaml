@@ -1,0 +1,16 @@
+# 메트릭 수집 — 다른 서비스와 같은 PodMonitor 템플릿. http_server_requests_seconds{application="ops-api"} + ops_action_total (계약 5장)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ops-api
+  labels:
+    app.kubernetes.io/name: ops-api
+    app.kubernetes.io/part-of: cinema
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: ops-api }
+  podMetricsEndpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+  podTargetLabels: [rollouts-pod-template-hash]

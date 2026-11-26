@@ -1,0 +1,9 @@
+# ops-api 이미지 태그 — SeatSAC build-push가 newTag만 커밋한다 (커밋 작성자 seatsac-build-push[bot]). 사람이 고치지 않는다
+# 처음 값 d9390c1 = services/ops-api 첫 커밋(SeatSAC 6.1.7 PR). 저장소 변수 OPS_BUILD_PUSH_ENABLED=true 뒤
+# build-push를 services=ops-api로 한 번 돌리면 실제로 만든 이미지 태그로 바뀐다(런북 6-K 2단계). 그 전에는 Application cinema-ops-api가 없어 배포되지 않는다
+# newName(레지스트리)을 여기 쓰지 않는다: 계정 ID가 Public 레포에 들어간다
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+images:
+  - name: cinema/ops-api
+    newTag: "5881249"
