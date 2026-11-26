@@ -1,6 +1,7 @@
 # ⚠️AI ai 인바운드 허용 (런타임 계약 6장 ⚠️AI 행, ADR-86). egress는 막지 않는다
-#   gateway(/api/ai/**)와 Prometheus 수집만. 다른 서비스는 ai를 부르지 않는다
-#   ai는 X-User-Id를 그대로 믿는다(gateway가 JWT 검증 뒤 넣는다) → gateway 말고 다른 파드가 닿으면 안 된다
+#   gateway(/api/ai/**)와 Prometheus 수집 + 🆕 ops-api(6.1.7 — 내부 통계 GET /internal/ai/unmet-demand/stats만 부른다)
+#   ai는 X-User-Id를 그대로 믿는다(gateway가 JWT 검증 뒤 넣는다) → gateway·ops-api 말고 다른 파드가 닿으면 안 된다.
+#   ops-api는 ADMIN 토큰을 직접 검증하고, 사용자 경로(/ai/chat)는 부르지 않으며 X-User-Id를 넘기지 않는다
 #   ai → 공개 API는 클러스터 안 gateway가 아니라 CloudFront 주소로 나간다(egress) — 기존 정책 수정 없음
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -16,6 +17,9 @@ spec:
   ingress:
     - from:
         - podSelector: { matchLabels: { app.kubernetes.io/name: gateway } }
+      ports: [{ port: 8080, protocol: TCP }]
+    - from:                                   # 🆕 ops-api → 내부 통계 (OPS-23, ai.internal.openapi.yaml x-caller)
+        - podSelector: { matchLabels: { app.kubernetes.io/name: ops-api } }
       ports: [{ port: 8080, protocol: TCP }]
     - from:                                   # Prometheus 수집
         - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
