@@ -44,7 +44,10 @@ reviews:
     - path: "overlays/staging/*/kustomization.yaml"
       instructions: >
         {svc}-config의 키는 런타임 계약 3장 이름만 쓴다(SPRING_* 표준 바인딩, APP_* 앱 고유). 새 키가 보이면 계약 문서에 있는지 묻는다.
-        ${...} 자리는 DB_HOST·VALKEY_HOST·SQS_NOTIFICATION_URL·COGNITO_ISSUER_URI·COGNITO_CLIENT_ID·PORTONE_STORE_ID·PORTONE_CHANNEL_KEY_TOSSPAY(payment만, ADR-112)만 허용한다. 다른 이름이면 Terraform infra_endpoints.tf에 없는 키라 기동 실패다.
+        ${...} 자리는 DB_HOST·VALKEY_HOST·SQS_NOTIFICATION_URL·COGNITO_ISSUER_URI·COGNITO_CLIENT_ID·PORTONE_STORE_ID·PORTONE_CHANNEL_KEY_TOSSPAY(payment만, ADR-112)와
+        🆕 MSA 고도화(SeatSAC 런타임 계약 3장 cinema-infra-endpoints 표): 서비스별 RDS DB_HOST_{BOOKING,PAYMENT,USER,CATALOG,COUPON}(자기 서비스 것만 — 다른 서비스 키면 지적, ADR-115) ·
+        메시징 SNS_{BOOKING,CATALOG}_EVENTS_ARN·SQS_{COUPON,PAYMENT}_COMMANDS_URL·SQS_BOOKING_REPLIES_URL·SQS_USER_BOOKING_EVENTS_URL(ADR-117)만 허용한다. 다른 이름이면 Terraform infra_endpoints.tf에 없는 키라 기동 실패다.
+        DB_HOST(기존 공용 인스턴스)에서 DB_HOST_{SVC}로 바꾸는 PR은 base/{svc}/flyway-job.yaml의 configMapKeyRef key도 같은 PR에서 바뀌었는지 본다(런북 8-E 3 ④).
         ai(Python)는 ${...} 치환이 없다 — overlays/staging/ai의 ai-config에 ${...}가 보이면 지적한다(AI_VALKEY_HOST·PUBLIC_API_BASE_URL은 cinema-infra-endpoints에서 이름 그대로 읽는다). ai-config 키는 런타임 계약 9-1 표의 APP_ENV·APP_AI_*만.
         엔드포인트·URL을 값으로 직접 적으면 지적한다(서비스 간 주소 http://{svc}:8080 과, 런타임 계약 3장 표에 값이 그대로 적힌 외부 공개 API 주소 — payment APP_PORTONE_API_BASE_URL=https://api.portone.io — 은 허용).
         configMapGenerator의 sync-wave는 "-2"(Flyway Job -1보다 먼저)여야 한다. images 블록을 overlay에 직접 두면 지적한다(image-tag Component로).
