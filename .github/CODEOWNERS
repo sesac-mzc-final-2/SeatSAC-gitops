@@ -1,8 +1,10 @@
 # ⚠️ 아이디는 SeatSAC CODEOWNERS와 같은 값으로 맞춘다
 *                               @pinodo @namgungil
-/overlays/staging/gateway/      @pinodo @imi21123
-/overlays/staging/catalog/      @pinodo @imi21123
-/overlays/staging/user/         @pinodo @imi21123
+# ⏳ gateway·catalog의 @namgungil은 임시(11/27~, 한채연 부재 — SeatSAC services/gateway·catalog와 같은 두 번째 소유자). 복귀하면 되돌린다
+/overlays/staging/gateway/      @pinodo @imi21123 @namgungil
+/overlays/staging/catalog/      @pinodo @imi21123 @namgungil
+# user는 11/24부터 김종식 담당(SeatSAC #186) — 두 번째 소유자는 SeatSAC services/user와 같은 @namgungil
+/overlays/staging/user/         @pinodo @namgungil
 /overlays/staging/booking/      @pinodo @namgungil
 /overlays/staging/payment/      @pinodo @namgungil
 /overlays/staging/coupon/       @pinodo @namgungil   # 6.1.5 coupon(김종식, SeatSAC #178) — 승인용 남궁일
