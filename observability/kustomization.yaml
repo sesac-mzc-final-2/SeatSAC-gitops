@@ -26,3 +26,13 @@ configMapGenerator:
         grafana_dashboard: "1"
         app.kubernetes.io/name: dashboard-seatsac-ai
         app.kubernetes.io/part-of: cinema
+  # 6.2.7 동기 ↔ 비동기 결제 비교 측정(SeatSAC services/docs/msa-upgrade/05 4장). 측정용 — 시연 뒤 지워도 된다
+  - name: dashboard-seatsac-pay-compare
+    files:
+      - seatsac-pay-compare.json=dashboards/seatsac-pay-compare.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+        app.kubernetes.io/name: dashboard-seatsac-pay-compare
+        app.kubernetes.io/part-of: cinema
