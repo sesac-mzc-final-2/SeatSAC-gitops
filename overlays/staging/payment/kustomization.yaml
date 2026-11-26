@@ -34,3 +34,10 @@ configMapGenerator:
       - APP_PORTONE_STORE_ID=${PORTONE_STORE_ID}
       - APP_PORTONE_CHANNEL_KEY_TOSSPAY=${PORTONE_CHANNEL_KEY_TOSSPAY}
       - APP_PORTONE_PENDING_TIMEOUT=7m
+      # 6.2.3 체크아웃 saga 명령 소비·결과 발송 (ADR-116·117, SeatSAC 런타임 계약 3장). 큐 주소는 Terraform cinema-infra-endpoints
+      #   ServiceAccount payment(Pod Identity, base/payment/serviceaccount.yaml)와 같은 PR — 권한 없이 켜면 수신·발송이 AccessDenied
+      #   booking saga 플래그(APP_CHECKOUT_SAGA_ENABLED)보다 먼저 머지한다 — 명령이 오기 전에 받는 쪽이 떠 있어야 한다
+      - APP_MESSAGING_CONSUMER_ENABLED=true
+      - APP_MESSAGING_COMMANDS_URL=${SQS_PAYMENT_COMMANDS_URL}
+      - APP_MESSAGING_REPLIES_URL=${SQS_BOOKING_REPLIES_URL}
+      - APP_OUTBOX_RELAY_ENABLED=true

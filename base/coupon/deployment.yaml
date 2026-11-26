@@ -1,0 +1,106 @@
+# coupon — 롤링 (maxUnavailable 0, maxSurge 1) · 6.1.5 (SeatSAC ADR-118, 런타임 계약 2장: replicas 2~4 HPA, 200m·448Mi / 640Mi)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coupon
+  labels:
+    app.kubernetes.io/name: coupon
+    app.kubernetes.io/part-of: cinema
+spec:
+  replicas: 2                              # HPA(hpa.yaml)가 2~4로 맞춘다. AZ마다 하나씩(topologySpread)
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: { app.kubernetes.io/name: coupon }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: coupon
+        app.kubernetes.io/part-of: cinema
+    spec:
+      terminationGracePeriodSeconds: 35
+      serviceAccountName: coupon               # Pod Identity cinema-staging-coupon-pod (SQS coupon-commands 수신·booking-replies 발송)
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      topologySpreadConstraints:              # ng-a·ng-c(AZ a·c)에 나눠 배치
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app.kubernetes.io/name: coupon }
+      initContainers:
+        # RDS CA(PEM) → Java 트러스트스토어(PKCS12). Connector/J sslMode=VERIFY_IDENTITY가 서버 인증서·호스트 이름을 검증한다 (3.1.17)
+        #   PEM 번들은 인증서 여러 개라 한 장씩 나눠 넣는다(keytool은 번들의 첫 인증서만 읽는다)
+        #   트러스트스토어 비밀번호는 공개 CA용 무결성 값이라 비밀이 아니다 → overlay {svc}-config의 trustCertificateKeyStorePassword와 같아야 한다
+        - name: rds-truststore
+          image: cinema/coupon                  # overlay images가 앱 컨테이너와 같은 ECR 주소·태그로 바꾼다 (keytool은 JRE에 있다)
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              # 재실행(init 컨테이너 재시작) 때 emptyDir에 남은 이전 결과 때문에 alias 중복으로 실패하지 않게 먼저 지운다
+              rm -f /truststore/rds-ca.p12 /tmp/rds-ca-*.pem
+              awk '/BEGIN CERTIFICATE/{n++} n>0{print > ("/tmp/rds-ca-" n ".pem")}' /etc/rds-ca/rds-ca.pem
+              for f in /tmp/rds-ca-*.pem; do
+                keytool -importcert -noprompt -alias "$(basename "$f" .pem)" -file "$f" \
+                  -keystore /truststore/rds-ca.p12 -storetype PKCS12 -storepass rds-ca-truststore
+              done
+              n=$(keytool -list -keystore /truststore/rds-ca.p12 -storetype PKCS12 -storepass rds-ca-truststore | grep -c trustedCertEntry)
+              echo "RDS CA ${n}개를 트러스트스토어에 넣었다"
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: rds-ca, mountPath: /etc/rds-ca, readOnly: true }
+            - { name: truststore, mountPath: /truststore }
+      containers:
+        - name: coupon
+          image: cinema/coupon                  # overlay images가 ECR 주소·태그로 바꾼다
+          ports:
+            - { name: http, containerPort: 8080 }
+          envFrom:
+          - configMapRef: { name: cinema-infra-endpoints }   # Terraform(staging-k8s) — DB_HOST_COUPON·VALKEY_HOST·SQS_* 등. coupon-config의 ${...} 값
+          - configMapRef: { name: coupon-config }
+          - secretRef: { name: coupon-secrets }       # Terraform(staging-k8s) 생성 → 6.1.4 ESO가 같은 값으로 Merge
+          # readiness 그룹: readinessState,db
+          startupProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: http }
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: { command: ["sleep", "5"] }   # 엔드포인트 제거가 퍼질 시간
+          resources:
+            requests: { cpu: 200m, memory: 448Mi }
+            limits: { memory: 640Mi }        # cpu limit 없음 (스로틀로 p95 악화)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: truststore, mountPath: /truststore, readOnly: true }   # 3.1.17 RDS CA 트러스트스토어
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - { name: truststore, emptyDir: {} }
+        - { name: rds-ca, configMap: { name: rds-ca-bundle } }   # Terraform이 만든다 (gitops에 없음)

@@ -1,0 +1,52 @@
+# 6.1.6 Karpenter NodePool — 관리형 노드 2대(ng-a·ng-c t3.xlarge)로 모자랄 때만 t3 On-Demand 노드를 더한다 (ADR-122)
+#
+# CPU 상한 limits.cpu "16" (Karpenter 노드 합계, 관리형 노드 8 vCPU는 별도):
+#   t3.xlarge(4 vCPU) 4대 또는 t3.large(2 vCPU) 8대까지. ap-northeast-2 On-Demand t3.xlarge 약 $0.208/시간 →
+#   16 vCPU를 하루 15시간(08:23~23:07) 다 써도 약 $12.5/일. RDS 6·NAT 2·Valkey·관리형 노드(약 $30/일)와 합쳐
+#   하루 비용 상한 $50(Budgets 일 경보, SeatSAC ADR-114) 안. 상한에 닿으면 파드는 Pending으로 남는다(노드를 더 만들지 않는다)
+#
+# 파드를 옮기지 않는 설정(시연·블루/그린 중 disruption 0이 기본):
+#   - consolidationPolicy WhenEmpty: **빈 노드만** 지운다. 덜 찬 노드의 파드를 다른 노드로 옮기는 압축(WhenEmptyOrUnderutilized)은 쓰지 않는다
+#     — 블루/그린 preview·SSE 연결·분석 Job을 낮에 다른 노드로 쫓아내지 않게. 밤마다 노드를 다 지우므로 덜 찬 노드의 낭비는 하루를 넘지 않는다
+#   - expireAfter Never: 시간이 지났다고 노드를 갈지 않는다(밤 정리가 매일 새로 띄운다)
+#   - Drifted 0: AMI·설정이 바뀌어도 낮에 교체하지 않는다(아침에 새로 뜰 때 반영)
+#   - 시연 중에는 빈 노드 정리까지 멈춘다: 아래 budgets 첫 줄을 nodes: "0"으로 바꾸는 PR 1개 → 시연 뒤 revert (SeatSAC 런북 6-K-5)
+#
+# 밤 끄기: 이 NodePool을 끄지 않는다. 컨트롤러가 관리형 노드에만 떠서 관리형 노드그룹이 0대가 되면 컨트롤러도 멈추고,
+#   남은 Karpenter 노드는 SeatSAC envs/staging 정리 Lambda(15분마다, 관리형 노드그룹이 모두 0대일 때만)가 지운다 → selfHeal과 부딪치지 않는다
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "-7"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  template:
+    metadata:
+      labels:
+        cinema/capacity: karpenter      # kubectl get nodes -L cinema/capacity 로 관리형·Karpenter 노드를 나눠 본다
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      # taint 없음: 앱 파드는 관리형 노드와 똑같이 올라간다. ai 파드(nodeSelector cinema/workload=ai)는 이 노드에 오지 않는다 —
+      #   라벨 cinema/workload가 없어서다. ai는 계속 ng-ai(평소 0대)만 쓴다
+      requirements:
+        - { key: karpenter.k8s.aws/instance-family, operator: In, values: ["t3"] }
+        - { key: karpenter.k8s.aws/instance-size, operator: In, values: ["large", "xlarge"] }   # medium(4Gi)은 데몬셋 뒤 남는 메모리가 적다
+        - { key: karpenter.sh/capacity-type, operator: In, values: ["on-demand"] }              # 스팟 회수로 시연 중 노드가 사라지지 않게
+        - { key: kubernetes.io/arch, operator: In, values: ["amd64"] }                          # 이미지가 x86(build-push)
+        - { key: topology.kubernetes.io/zone, operator: In, values: ["ap-northeast-2a", "ap-northeast-2c"] }   # app 서브넷이 있는 두 AZ
+      expireAfter: Never
+  limits:
+    cpu: "16"
+    memory: 64Gi
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 5m              # 빈 채로 5분 지나면 지운다(블루/그린 scaleDownDelay 60초 뒤 잠깐 빈 노드를 바로 지우지 않게)
+    budgets:
+      - nodes: "1"                    # 평소: 한 번에 한 대. 시연 중에는 "0" (런북 6-K-5)
+      - nodes: "0"
+        reasons: [Drifted]            # 낮에 AMI·설정 변경으로 교체하지 않는다
