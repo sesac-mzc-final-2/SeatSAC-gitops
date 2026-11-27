@@ -7,7 +7,8 @@ metadata:
     app.kubernetes.io/name: payment
     app.kubernetes.io/part-of: cinema
 spec:
-  replicas: 1
+  # 6.1.10 ADR-122: 2 — AZ마다 하나(topologySpread). ⚠ ops_api_enabled 뒤에는 RespectIgnoreDifferences라 이 값이 자동 sync로 적용되지 않는다 → 머지 뒤 SeatSAC 런북 6-L 4-1 수동 sync
+  replicas: 2
   revisionHistoryLimit: 3
   selector:
     matchLabels: { app.kubernetes.io/name: payment }
