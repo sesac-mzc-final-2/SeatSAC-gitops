@@ -15,3 +15,6 @@ kubeconfig
 .idea/
 .vscode/
 .DS_Store
+# Python 실행 부산물 (observability/report-export 테스트)
+__pycache__/
+*.pyc

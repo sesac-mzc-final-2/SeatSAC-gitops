@@ -5,7 +5,7 @@
 #   - 로컬 디스크 /var/loki는 emptyDir(EBS CSI 없음 — 아래 extraVolumes. 루트 파일시스템은 읽기 전용이라 이 마운트가 없으면 기동하지 못한다).
 #     파드가 다시 뜨면 ① 아직 S3에 올리지 않은 최근 로그(수 분)를 잃고 ② compactor가 지우려고 표시해 둔 청크 목록(로컬 marker)이
 #     사라져, 그 청크는 조회되지 않은 채 S3 수명 주기(14일, SeatSAC loki.tf)가 지울 때까지 남는다(최대 약 7일 더)
-#   - 조회는 NetworkPolicy loki-ingress로 Grafana·Alloy만(auth_enabled false라 Loki 자체는 호출자를 확인하지 않는다)
+#   - 조회는 NetworkPolicy loki-ingress로 Grafana·Alloy·리포트 내보내기(6.1.9)만(auth_enabled false라 Loki 자체는 호출자를 확인하지 않는다)
 #   - 라벨은 값 종류가 적은 것만(Alloy가 붙임: namespace·app·container·pod). traceId·userId는 라벨이 아니라 | json 으로 거른다
 deploymentMode: SingleBinary
 
@@ -87,7 +87,7 @@ sidecar:
 rbac:
   namespaced: true               # ClusterRole 대신 monitoring namespace Role만
 
-# Loki 수신 경계: 3100(HTTP)은 Grafana(조회)·Alloy(push)만, 그 밖의 포트는 Loki 자기 자신만(memberlist·gRPC).
+# Loki 수신 경계: 3100(HTTP)은 Grafana(조회)·Alloy(push)·report-export(조회, 6.1.9)만, 그 밖의 포트는 Loki 자기 자신만(memberlist·gRPC).
 # monitoring namespace에는 다른 NetworkPolicy가 없다 → 이 정책은 Loki 파드에만 걸린다. egress(S3)는 막지 않는다.
 # kubelet 프로브(/ready)는 NetworkPolicy 대상이 아니다(SeatSAC 런타임 계약 6장)
 extraObjects:
@@ -111,6 +111,9 @@ extraObjects:
             - podSelector:
                 matchLabels:
                   app.kubernetes.io/name: alloy
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: report-export   # 6.1.9 리포트 내보내기 CronJob(observability/report-export) — 조회만(query_range)
           ports:
             - { port: 3100, protocol: TCP }
         - from:

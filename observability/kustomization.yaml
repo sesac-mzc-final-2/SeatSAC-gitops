@@ -6,6 +6,8 @@ kind: Kustomization
 namespace: monitoring
 resources:
   - prometheusrule.yaml
+  - report-export/serviceaccount.yaml   # 6.1.9 리포트 내보내기(ADR-121)
+  - report-export/cronjob.yaml
 configMapGenerator:
   - name: dashboard-seatsac-traffic-light
     files:
@@ -35,4 +37,12 @@ configMapGenerator:
       labels:
         grafana_dashboard: "1"
         app.kubernetes.io/name: dashboard-seatsac-pay-compare
+        app.kubernetes.io/part-of: cinema
+  # 6.1.9 리포트 내보내기 스크립트(CronJob report-export의 initContainer가 /app/export.py로 읽는다). 바뀌면 해시가 바뀌어 다음 Job부터 새 스크립트
+  - name: report-export-script
+    files:
+      - export.py=report-export/export.py
+    options:
+      labels:
+        app.kubernetes.io/name: report-export
         app.kubernetes.io/part-of: cinema

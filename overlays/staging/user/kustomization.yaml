@@ -30,5 +30,5 @@ configMapGenerator:
       - APP_MESSAGING_BOOKING_EVENTS_URL=${SQS_USER_BOOKING_EVENTS_URL}
       - APP_MESSAGING_CONSUMER_ENABLED=true
       # 6.5.1b 예매 내역을 복제본에서 읽는다(API 명세서 v1.5 23-1). 소비자가 쌓인 이벤트를 다 읽은 뒤(user-booking-events 대기 0).
-      #   되돌리기는 이 줄 revert(바로 sync — 복제본은 남는다). 확인 절차 SeatSAC 런북 terraform-infra 6-M 1)
+      #   되돌리기는 이 줄 revert(바로 sync — 복제본은 남는다). 확인 절차 SeatSAC 런북 terraform-infra 6-N 1)
       - APP_BOOKING_HISTORY_MODE=local
