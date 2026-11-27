@@ -5,8 +5,9 @@ CronJob report-export의 initContainer가 실행한다. 표준 라이브러리�
 S3 업로드는 같은 파드의 aws-cli 컨테이너가 OUT_DIR을 올린다 — 이 스크립트는 AWS 자격 증명을 쓰지 않는다.
 
   - 대상: namespace cinema-staging 로그 중 errorCategory가 있는 줄(SeatSAC conventions 6장)
-  - 기간: 지난 EXPORT_HOURS개의 「끝난」 KST 정시 구간. 같은 시간 파일은 매번 통째로 다시 만든다(멱등) —
-          밤에 노드가 꺼져 CronJob을 몇 번 건너뛰어도 아침 첫 실행이 앞 시간을 채운다(Loki 보관 7일 안)
+  - 기간: 지난 EXPORT_HOURS개의 「끝난」 KST 정시 구간 + 진행 중인 시간(정시~지금, EXPORT_CURRENT_HOUR, 기본 켬).
+          같은 시간 파일은 매번 통째로 다시 만든다(멱등) — 10분마다 돌면 진행 중인 시간 파일이 그때까지의 줄로 커진다
+          (리포트가 최대 약 10분 늦다). 밤에 노드가 꺼져 몇 번 건너뛰어도 아침 첫 실행이 앞 시간을 채운다(Loki 보관 7일 안)
   - 출력: OUT_DIR/dt=YYYY-MM-DD/HH.json.gz (KST 날짜·시) → S3 errors/dt=YYYY-MM-DD/HH.json.gz
           줄이 없는 시간은 파일을 만들지 않는다(ops-api 날짜 목록은 있는 dt=만 보인다)
   - 열: timestamp·service·level·errorCategory·status·path·traceId·message 만 남긴다(Glue 테이블 errors와 같다).
@@ -29,10 +30,13 @@ MESSAGE_MAX = 2000
 PAGE_LIMIT = 5000  # Loki 기본 max_entries_limit_per_query
 
 
-def hour_windows(now: datetime, hours: int) -> list[tuple[datetime, datetime]]:
-    """지금(now) 바로 앞에서 끝난 KST 정시 구간 hours개, 오래된 것부터."""
+def hour_windows(now: datetime, hours: int, current: bool = False) -> list[tuple[datetime, datetime]]:
+    """지금(now) 바로 앞에서 끝난 KST 정시 구간 hours개, 오래된 것부터. current면 진행 중인 시간(정시~now)을 끝에 더한다."""
     top = now.astimezone(KST).replace(minute=0, second=0, microsecond=0)
-    return [(top - timedelta(hours=i), top - timedelta(hours=i - 1)) for i in range(hours, 0, -1)]
+    windows = [(top - timedelta(hours=i), top - timedelta(hours=i - 1)) for i in range(hours, 0, -1)]
+    if current and now.astimezone(KST) > top:
+        windows.append((top, now.astimezone(KST)))
+    return windows
 
 
 def to_row(line: str, stream: dict) -> dict | None:
@@ -122,11 +126,12 @@ def main() -> int:
     base = os.environ.get("LOKI_URL", "http://loki.monitoring.svc:3100").rstrip("/")
     query = os.environ.get("EXPORT_QUERY", '{namespace="cinema-staging"} |= "errorCategory"')
     hours = int(os.environ.get("EXPORT_HOURS", "3"))
+    current = os.environ.get("EXPORT_CURRENT_HOUR", "true").lower() == "true"
     out_dir = Path(os.environ.get("OUT_DIR", "/work/errors"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
     total = 0
-    for start, end in hour_windows(datetime.now(timezone.utc), hours):
+    for start, end in hour_windows(datetime.now(timezone.utc), hours, current):
         rows = fetch_window(base, query, start, end)
         path = write_hour(out_dir, start, rows)
         total += len(rows)
