@@ -54,6 +54,8 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels: { app.kubernetes.io/name: booking }
+          # 같은 버전 파드끼리만 센다(Argo Rollouts 라벨) — 옛 파드까지 세면 새 파드 2개가 한 AZ에 몰릴 수 있다(11/27 coupon)
+          matchLabelKeys: [rollouts-pod-template-hash]
       initContainers:
         # RDS CA(PEM) → Java 트러스트스토어(PKCS12). Connector/J sslMode=VERIFY_IDENTITY가 서버 인증서·호스트 이름을 검증한다 (3.1.17)
         #   PEM 번들은 인증서 여러 개라 한 장씩 나눠 넣는다(keytool은 번들의 첫 인증서만 읽는다)
