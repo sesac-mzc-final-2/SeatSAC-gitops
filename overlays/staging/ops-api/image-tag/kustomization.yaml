@@ -6,4 +6,4 @@ apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 images:
   - name: cinema/ops-api
-    newTag: "84cc702"
+    newTag: "4dec0e2"
