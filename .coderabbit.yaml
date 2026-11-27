@@ -61,17 +61,20 @@ reviews:
 
     - path: "base/ai/**"
       instructions: >
-        ⚠️AI ai(Python, SeatSAC ADR-86·런타임 계약 2·9장). Deployment 롤링(maxUnavailable 0, maxSurge 1), replicas 1 고정, HPA·Flyway Job 없음이 맞다.
+        ⚠️AI ai(Python, SeatSAC ADR-86·런타임 계약 2·9장). Deployment 롤링(maxUnavailable 0, maxSurge 1), replicas 1 고정, HPA 없음이 맞다.
+        🆕 ADR-120(6.4.1): ai는 **자기 인스턴스 ai_db만** 쓴다 — Flyway 훅 Job ai-flyway(flyway-job.yaml, ai_migrator·ai-migrator-secrets)와
+        rds-ca 볼륨(ConfigMap rds-ca-bundle)·DB_HOST_AI는 허용. ai-flyway는 nodeSelector·toleration 없이 일반 노드에서 돈다(ng-ai 0대여도).
         nodeSelector cinema/workload: ai 와 toleration(cinema/workload=ai:NoSchedule)이 둘 다 있어야 한다 — 빠지면 ai가 ng-a·ng-c에 떠서 좌석 데모 노드를 잡아먹는다.
         requests 250m·1Gi, limits memory 1.5Gi(1536Mi), cpu limit 없음. envFrom은 cinema-infra-endpoints → ai-config → ai-secrets.
-        RDS·기존 Valkey 관련 설정(rds-ca 볼륨·트러스트스토어·DB_HOST·VALKEY_HOST)이 들어오면 지적한다(ai는 RDS·기존 Valkey에 연결하지 않는다).
+        다른 서비스 DB·기존 Valkey 설정(DB_HOST·DB_HOST_{BOOKING,PAYMENT,USER,CATALOG,COUPON}·VALKEY_HOST)이 들어오면 지적한다
+        (ai는 다른 서비스 DB·기존 Valkey에 연결하지 않는다 — 런타임 계약 9-2).
         컨테이너 이름은 ai여야 한다(SeatSAC np-check.sh가 컨테이너 이름으로 exec).
 
     - path: "base/*/flyway-job.yaml"
       instructions: >
         ArgoCD Sync 훅 Job: hook Sync, sync-wave "-1", hook-delete-policy BeforeHookCreation, backoffLimit 0 이어야 한다(PreSync로 바꾸면 첫 배포 때 ConfigMap보다 먼저 돌아 실패).
         flyway 이미지는 flyway/flyway:11.7.2 고정. initContainer는 같은 앱 이미지(cinema/{svc})로 /app/db/migration을 복사한다.
-        env DB_HOST(configMapKeyRef cinema-infra-endpoints)가 FLYWAY_URL보다 앞에 있어야 $(DB_HOST)가 치환된다.
+        호스트 env(configMapKeyRef cinema-infra-endpoints — 🆕 서비스별 인스턴스 키 DB_HOST_{SVC}, ai는 DB_HOST_AI)가 FLYWAY_URL보다 앞에 있어야 $(…)가 치환된다.
         FLYWAY_URL에서 useSsl=true·serverSslCert=/etc/rds-ca/rds-ca.pem 이 빠지거나 trustServerCertificate=true·disableSslHostnameVerification=true 가 되면 지적한다(인증서 검증 끔).
         계정은 {svc}-migrator-secrets만 쓴다. 앱 Secret이나 마스터 계정을 쓰면 지적한다.
 
