@@ -54,6 +54,8 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels: { app.kubernetes.io/name: gateway }
+          # 같은 버전 파드끼리만 센다(Argo Rollouts 라벨) — 옛 파드까지 세면 새 파드 2개가 한 AZ에 몰릴 수 있다(11/27 coupon)
+          matchLabelKeys: [rollouts-pod-template-hash]
       containers:
         - name: gateway
           image: cinema/gateway                  # overlay images가 ECR 주소·태그로 바꾼다
