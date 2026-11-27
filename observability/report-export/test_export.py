@@ -24,6 +24,15 @@ class HourWindows(unittest.TestCase):
         self.assertEqual([f"{s.astimezone(export.KST):%m-%d %H}" for s, _ in w], ["11-27 00", "11-27 01", "11-27 02"])
         self.assertTrue(all((e - s).total_seconds() == 3600 for s, e in w))
 
+    def test_current_hour_is_appended_up_to_now(self):
+        now = datetime(2026, 11, 26, 18, 27, tzinfo=timezone.utc)  # KST 11/27 03:27
+        w = export.hour_windows(now, 3, current=True)
+        self.assertEqual([f"{s.astimezone(export.KST):%H}" for s, _ in w], ["00", "01", "02", "03"])
+        self.assertEqual(w[-1][1], now)  # 진행 중인 시간은 지금까지만
+        # 정시 딱 맞으면 진행 중인 구간이 비어 더하지 않는다
+        on_the_hour = datetime(2026, 11, 26, 18, 0, tzinfo=timezone.utc)
+        self.assertEqual(len(export.hour_windows(on_the_hour, 3, current=True)), 3)
+
 
 class ToRow(unittest.TestCase):
     def test_keeps_only_report_columns(self):
